@@ -5,7 +5,7 @@ const FILE = "settings.json";
 let storePromise: Promise<Store> | null = null;
 
 function getStore(): Promise<Store> {
-  if (!storePromise) storePromise = load(FILE, { autoSave: true });
+  if (!storePromise) storePromise = load(FILE, { autoSave: true, defaults: {} });
   return storePromise;
 }
 
@@ -17,11 +17,15 @@ export async function loadSettings(): Promise<Partial<Settings>> {
   const inclTitle = await s.get<boolean>("include_title_in_name");
   const moveAfter = await s.get<boolean>("move_after_rename");
   const moveDir = await s.get<string | null>("move_target_dir");
+  const bulkRec = await s.get<boolean>("bulk_recursive_default");
+  const bulkDir = await s.get<string | null>("bulk_target_dir");
   if (url) out.lmstudio_url = url;
   if (model) out.model = model;
   if (typeof inclTitle === "boolean") out.include_title_in_name = inclTitle;
   if (typeof moveAfter === "boolean") out.move_after_rename = moveAfter;
   if (typeof moveDir === "string" || moveDir === null) out.move_target_dir = moveDir;
+  if (typeof bulkRec === "boolean") out.bulk_recursive_default = bulkRec;
+  if (typeof bulkDir === "string" || bulkDir === null) out.bulk_target_dir = bulkDir;
   return out;
 }
 
@@ -32,6 +36,8 @@ export async function saveSettings(settings: Settings): Promise<void> {
   await s.set("include_title_in_name", settings.include_title_in_name);
   await s.set("move_after_rename", settings.move_after_rename);
   await s.set("move_target_dir", settings.move_target_dir);
+  await s.set("bulk_recursive_default", settings.bulk_recursive_default);
+  await s.set("bulk_target_dir", settings.bulk_target_dir);
 }
 
 export async function loadUndo(): Promise<UndoEntry | null> {

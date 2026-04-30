@@ -6,6 +6,23 @@ export function sanitize(s: string): string {
   return s.replace(FORBIDDEN, "").replace(/\s+/g, " ").trim();
 }
 
+/**
+ * Normalisiert Autor auf "Nachname, Vorname".
+ * - Enthält bereits Komma → unverändert (sanitize-trim später).
+ * - Genau zwei Tokens (Wörter) → "<2>, <1>" (heuristisch: Eingabe = "Nachname Vorname"
+ *   im Altformat, oder "Vorname Nachname" — wir gehen im Altformat von "Nachname Vorname"
+ *   aus und drehen NICHT, fügen nur das Komma ein).
+ * - Anderes (mehrere Wörter, z.B. "Carlos Ruiz Zafón") → unverändert (User editiert manuell).
+ */
+export function formatAuthor(raw: string): string {
+  const trimmed = raw.trim();
+  if (!trimmed) return "";
+  if (trimmed.includes(",")) return trimmed;
+  const parts = trimmed.split(/\s+/);
+  if (parts.length === 2) return `${parts[0]}, ${parts[1]}`;
+  return trimmed;
+}
+
 export function padVolume(volume: number, max: number): string {
   const width = Math.max(2, String(Math.max(max, 1)).length);
   return String(volume).padStart(width, "0");
@@ -24,7 +41,7 @@ export function buildProposedName(
   maxVol: number,
   includeTitle: boolean,
 ): string {
-  const author = sanitize(meta.author);
+  const author = sanitize(formatAuthor(meta.author));
   const series = sanitize(meta.series);
   let name = `${author} - ${series}`;
   if (entry.volume !== null) {

@@ -6,14 +6,17 @@ import { SeriesHeader } from "./components/SeriesHeader";
 import { PreviewTable } from "./components/PreviewTable";
 import { ConfirmDialog } from "./components/ConfirmDialog";
 import { UndoBar } from "./components/UndoBar";
+import { BulkTab } from "./components/bulk/BulkTab";
 import { useStore, targetPath } from "./lib/store";
 import { analyze } from "./lib/lmstudio";
 import { findCollisions } from "./lib/collisions";
 import { loadSettings, loadUndo, saveUndo } from "./lib/persist";
-import type { RenameResult } from "./types";
+import type { Mode, RenameResult } from "./types";
 
 export default function App() {
   const {
+    mode,
+    setMode,
     settings,
     setSettings,
     entries,
@@ -95,37 +98,66 @@ export default function App() {
 
   return (
     <div className="flex flex-col h-screen">
-      <SettingsBar />
-      <SeriesHeader />
-      {entries.length > 0 ? (
+      <Tabs mode={mode} onChange={setMode} />
+      {mode === "series" ? (
         <>
-          <DropZone />
-          <ActionsBar
+          <SettingsBar />
+          <SeriesHeader />
+          {entries.length > 0 ? (
+            <>
+              <DropZone />
+              <ActionsBar
+                count={selected.length}
+                blocked={blocked}
+                analyzing={analyzing}
+                renaming={renaming}
+                collisions={collisions.size}
+                onAnalyze={runAnalyze}
+                onRename={() => setConfirm(true)}
+              />
+              <PreviewTable />
+            </>
+          ) : (
+            <DropZone />
+          )}
+          {error && (
+            <div className="px-4 py-2 bg-rose-950/60 border-t border-rose-900 text-sm text-rose-200">
+              {error}
+            </div>
+          )}
+          <UndoBar />
+          <ConfirmDialog
+            open={confirm}
             count={selected.length}
-            blocked={blocked}
-            analyzing={analyzing}
-            renaming={renaming}
-            collisions={collisions.size}
-            onAnalyze={runAnalyze}
-            onRename={() => setConfirm(true)}
+            onConfirm={runRename}
+            onCancel={() => setConfirm(false)}
           />
-          <PreviewTable />
         </>
       ) : (
-        <DropZone />
+        <BulkTab />
       )}
-      {error && (
-        <div className="px-4 py-2 bg-rose-950/60 border-t border-rose-900 text-sm text-rose-200">
-          {error}
-        </div>
-      )}
-      <UndoBar />
-      <ConfirmDialog
-        open={confirm}
-        count={selected.length}
-        onConfirm={runRename}
-        onCancel={() => setConfirm(false)}
-      />
+    </div>
+  );
+}
+
+function Tabs({ mode, onChange }: { mode: Mode; onChange: (m: Mode) => void }) {
+  const tab = (m: Mode, label: string) => (
+    <button
+      key={m}
+      onClick={() => onChange(m)}
+      className={`px-4 py-2 text-sm font-medium border-b-2 ${
+        mode === m
+          ? "border-blue-500 text-white"
+          : "border-transparent text-slate-400 hover:text-slate-200"
+      }`}
+    >
+      {label}
+    </button>
+  );
+  return (
+    <div className="flex items-center bg-slate-950 border-b border-slate-800 px-4">
+      {tab("series", "Serie")}
+      {tab("bulk", "Bibliothek")}
     </div>
   );
 }

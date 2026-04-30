@@ -18,7 +18,9 @@
       "allow": [
         { "url": "http://localhost:*" },
         { "url": "http://127.0.0.1:*" },
-        { "url": "http://0.0.0.0:*" }
+        { "url": "http://0.0.0.0:*" },
+        { "url": "https://www.googleapis.com/" },
+        { "url": "https://openlibrary.org/" }
       ]
     }
   ]
