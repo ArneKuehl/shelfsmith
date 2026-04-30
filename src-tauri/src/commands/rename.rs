@@ -40,10 +40,26 @@ fn do_rename(pair: &RenamePair) -> RenameResult {
     if to.exists() && !same_path_case_insensitive(&pair.from, &pair.to) {
         return err(pair, "Zieldatei existiert bereits");
     }
+    if let Some(parent) = to.parent() {
+        if !parent.as_os_str().is_empty() && !parent.exists() {
+            return err(pair, "Zielordner existiert nicht");
+        }
+    }
     match std::fs::rename(from, to) {
         Ok(()) => ok(pair),
+        Err(e) if is_cross_device(&e) => match std::fs::copy(from, to) {
+            Ok(_) => match std::fs::remove_file(from) {
+                Ok(()) => ok(pair),
+                Err(e) => err(pair, &format!("Quelle nach Kopie nicht löschbar: {e}")),
+            },
+            Err(e) => err(pair, &e.to_string()),
+        },
         Err(e) => err(pair, &e.to_string()),
     }
+}
+
+fn is_cross_device(e: &std::io::Error) -> bool {
+    e.raw_os_error() == Some(18)
 }
 
 fn ok(pair: &RenamePair) -> RenameResult {

@@ -1,3 +1,4 @@
+import { open } from "@tauri-apps/plugin-dialog";
 import { useStore } from "../lib/store";
 import { saveSettings } from "../lib/persist";
 
@@ -36,6 +37,41 @@ export function SettingsBar() {
         />
         Titel im Dateinamen
       </label>
+      <label className="flex items-center gap-2 text-sm pb-2">
+        <input
+          type="checkbox"
+          checked={settings.move_after_rename}
+          onChange={async (e) => {
+            const enabled = e.target.checked;
+            if (enabled && !settings.move_target_dir) {
+              const dir = await open({ directory: true, multiple: false });
+              if (typeof dir === "string") update({ move_after_rename: true, move_target_dir: dir });
+              return;
+            }
+            update({ move_after_rename: enabled });
+          }}
+        />
+        Nach Umbenennen verschieben
+      </label>
+      {settings.move_after_rename && (
+        <div className="flex items-center gap-2 pb-2 text-sm">
+          <span
+            className="text-slate-300 max-w-xs truncate"
+            title={settings.move_target_dir ?? "(kein Ordner)"}
+          >
+            {settings.move_target_dir ?? "(kein Ordner)"}
+          </span>
+          <button
+            className="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-xs"
+            onClick={async () => {
+              const dir = await open({ directory: true, multiple: false });
+              if (typeof dir === "string") update({ move_target_dir: dir });
+            }}
+          >
+            Ordner wählen…
+          </button>
+        </div>
+      )}
       <style>{`
         .input { width: 100%; background: rgb(15 23 42); border: 1px solid rgb(51 65 85);
           border-radius: 6px; padding: 6px 10px; font-size: 13px; color: rgb(226 232 240); }

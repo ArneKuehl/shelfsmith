@@ -27,6 +27,7 @@ export default function App() {
     applyLLM,
     setEntryStatus,
     setUndo,
+    setLastRenameDone,
   } = useStore();
 
   const [confirm, setConfirm] = useState(false);
@@ -37,7 +38,7 @@ export default function App() {
   }, [setSettings, setUndo]);
 
   const selected = entries.filter((e) => e.selected);
-  const collisions = findCollisions(entries);
+  const collisions = findCollisions(entries, settings);
   const blocked =
     selected.length === 0 || collisions.size > 0 || !meta.author || !meta.series;
 
@@ -63,7 +64,7 @@ export default function App() {
     setConfirm(false);
     setRenaming(true);
     setError(null);
-    const pairs = selected.map((e) => ({ from: e.originalPath, to: targetPath(e) }));
+    const pairs = selected.map((e) => ({ from: e.originalPath, to: targetPath(e, settings) }));
     selected.forEach((e) => setEntryStatus(e.id, "renaming"));
     try {
       const results = await invoke<RenameResult[]>("rename_files", { pairs });
@@ -82,6 +83,7 @@ export default function App() {
         const undo = { timestamp: Date.now(), pairs: successful };
         setUndo(undo);
         await saveUndo(undo);
+        setLastRenameDone(true);
       }
     } catch (e) {
       setError(String(e));

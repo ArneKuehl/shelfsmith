@@ -38,6 +38,8 @@ export type Settings = {
   lmstudio_url: string;
   model: string;
   include_title_in_name: boolean;
+  move_after_rename: boolean;
+  move_target_dir: string | null;
 };
 
 export type LLMResponse = {

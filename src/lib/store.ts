@@ -10,8 +10,10 @@ type State = {
   analyzing: boolean;
   renaming: boolean;
   error: string | null;
+  lastRenameDone: boolean;
 
   setSettings: (s: Partial<Settings>) => void;
+  setLastRenameDone: (b: boolean) => void;
   setMeta: (m: Partial<SeriesMeta>) => void;
   addPaths: (paths: string[]) => void;
   removeEntry: (id: string) => void;
@@ -31,6 +33,8 @@ const DEFAULT_SETTINGS: Settings = {
   lmstudio_url: "http://localhost:1234",
   model: "meta-llama-3.1-8b-instruct",
   include_title_in_name: true,
+  move_after_rename: false,
+  move_target_dir: null,
 };
 
 const ALLOWED_EXT = /\.(epub|pdf|mobi|azw3)$/i;
@@ -47,14 +51,19 @@ export const useStore = create<State>((set, get) => ({
   analyzing: false,
   renaming: false,
   error: null,
+  lastRenameDone: false,
 
   setSettings: (s) => set((st) => ({ settings: { ...st.settings, ...s } })),
+  setLastRenameDone: (b) => set({ lastRenameDone: b }),
   setMeta: (m) => {
     set((st) => ({ meta: { ...st.meta, ...m } }));
     get().recomputeNames();
   },
   addPaths: (paths) => {
-    const existing = new Set(get().entries.map((e) => e.originalPath));
+    const state = get();
+    const wipe = state.lastRenameDone;
+    const baseEntries = wipe ? [] : state.entries;
+    const existing = new Set(baseEntries.map((e) => e.originalPath));
     const fresh = paths
       .filter((p) => ALLOWED_EXT.test(p) && !existing.has(p))
       .map((p): FileEntry => {
@@ -72,8 +81,12 @@ export const useStore = create<State>((set, get) => ({
           status: "idle",
         };
       });
-    if (fresh.length === 0) return;
-    set((st) => ({ entries: [...st.entries, ...fresh] }));
+    if (fresh.length === 0 && !wipe) return;
+    set({
+      entries: [...baseEntries, ...fresh],
+      lastRenameDone: false,
+      ...(wipe ? { meta: { author: "", series: "" }, error: null } : {}),
+    });
   },
   removeEntry: (id) =>
     set((st) => ({ entries: st.entries.filter((e) => e.id !== id) })),
@@ -126,6 +139,10 @@ function sortByVolume(a: FileEntry, b: FileEntry): number {
   return a.volume - b.volume;
 }
 
-export function targetPath(e: FileEntry): string {
-  return joinPath(dirname(e.originalPath), e.proposedName);
+export function targetPath(e: FileEntry, settings?: Settings): string {
+  const dir =
+    settings?.move_after_rename && settings.move_target_dir
+      ? settings.move_target_dir
+      : dirname(e.originalPath);
+  return joinPath(dir, e.proposedName);
 }

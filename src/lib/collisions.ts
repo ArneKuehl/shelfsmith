@@ -1,13 +1,13 @@
-import type { FileEntry } from "../types";
+import type { FileEntry, Settings } from "../types";
 import { targetPath } from "./store";
 
 export type CollisionMap = Map<string, string[]>;
 
-export function findCollisions(entries: FileEntry[]): CollisionMap {
+export function findCollisions(entries: FileEntry[], settings?: Settings): CollisionMap {
   const byTarget = new Map<string, string[]>();
   for (const e of entries) {
     if (!e.selected) continue;
-    const t = targetPath(e).toLowerCase();
+    const t = targetPath(e, settings).toLowerCase();
     const arr = byTarget.get(t) ?? [];
     arr.push(e.id);
     byTarget.set(t, arr);
