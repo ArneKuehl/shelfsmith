@@ -1,11 +1,11 @@
 import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { SettingsBar } from "./components/SettingsBar";
 import { DropZone } from "./components/DropZone";
 import { SeriesHeader } from "./components/SeriesHeader";
 import { PreviewTable } from "./components/PreviewTable";
 import { ConfirmDialog } from "./components/ConfirmDialog";
 import { UndoBar } from "./components/UndoBar";
+import { SettingsScreen } from "./components/SettingsScreen";
 import { BulkTab } from "./components/bulk/BulkTab";
 import { useStore, targetPath } from "./lib/store";
 import { analyze } from "./lib/lmstudio";
@@ -34,6 +34,7 @@ export default function App() {
   } = useStore();
 
   const [confirm, setConfirm] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   useEffect(() => {
     loadSettings().then((s) => Object.keys(s).length > 0 && setSettings(s));
@@ -113,10 +114,11 @@ export default function App() {
           setSettings({ theme: next });
           saveSettings({ ...settings, theme: next }).catch(() => {});
         }}
+        onOpenSettings={() => setSettingsOpen(true)}
       />
+      {settingsOpen && <SettingsScreen onClose={() => setSettingsOpen(false)} />}
       {mode === "series" ? (
         <>
-          <SettingsBar />
           <SeriesHeader />
           {entries.length > 0 ? (
             <>
@@ -160,11 +162,13 @@ function Tabs({
   onChange,
   theme,
   onToggleTheme,
+  onOpenSettings,
 }: {
   mode: Mode;
   onChange: (m: Mode) => void;
   theme: Theme;
   onToggleTheme: () => void;
+  onOpenSettings: () => void;
 }) {
   const tab = (m: Mode, label: string) => (
     <button
@@ -190,6 +194,14 @@ function Tabs({
         aria-label="Theme umschalten"
       >
         {theme === "dark" ? "☀︎" : "☾"}
+      </button>
+      <button
+        onClick={onOpenSettings}
+        className="my-1 ml-1 px-3 py-1.5 text-base leading-none rounded border border-slate-300 dark:border-slate-700 text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800"
+        title="Einstellungen"
+        aria-label="Einstellungen öffnen"
+      >
+        ⚙
       </button>
     </div>
   );

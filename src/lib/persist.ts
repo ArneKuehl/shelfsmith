@@ -20,6 +20,7 @@ export async function loadSettings(): Promise<Partial<Settings>> {
   const bulkRec = await s.get<boolean>("bulk_recursive_default");
   const bulkDir = await s.get<string | null>("bulk_target_dir");
   const bulkSort = await s.get<string>("bulk_sort_by");
+  const bulkLlm = await s.get<boolean>("bulk_llm_fallback");
   const theme = await s.get<string>("theme");
   if (url) out.lmstudio_url = url;
   if (model) out.model = model;
@@ -29,6 +30,7 @@ export async function loadSettings(): Promise<Partial<Settings>> {
   if (typeof bulkRec === "boolean") out.bulk_recursive_default = bulkRec;
   if (typeof bulkDir === "string" || bulkDir === null) out.bulk_target_dir = bulkDir;
   if (bulkSort === "author" || bulkSort === "series") out.bulk_sort_by = bulkSort;
+  if (typeof bulkLlm === "boolean") out.bulk_llm_fallback = bulkLlm;
   if (theme === "dark" || theme === "light") out.theme = theme;
   return out;
 }
@@ -43,6 +45,7 @@ export async function saveSettings(settings: Settings): Promise<void> {
   await s.set("bulk_recursive_default", settings.bulk_recursive_default);
   await s.set("bulk_target_dir", settings.bulk_target_dir);
   await s.set("bulk_sort_by", settings.bulk_sort_by);
+  await s.set("bulk_llm_fallback", settings.bulk_llm_fallback);
   await s.set("theme", settings.theme);
 }
 

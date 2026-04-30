@@ -89,6 +89,7 @@ const DEFAULT_SETTINGS: Settings = {
   bulk_recursive_default: true,
   bulk_target_dir: null,
   bulk_sort_by: "author",
+  bulk_llm_fallback: true,
   theme: "dark",
 };
 

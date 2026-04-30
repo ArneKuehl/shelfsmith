@@ -293,6 +293,8 @@ function sourceLabel(s: BulkEntry["source"]): string {
   switch (s) {
     case "embedded":
       return "EPUB";
+    case "llm":
+      return "LLM";
     case "web":
       return "Web";
     case "manual":
@@ -306,6 +308,8 @@ function sourceColor(s: BulkEntry["source"]): string {
   switch (s) {
     case "embedded":
       return "bg-emerald-100 dark:bg-emerald-900/60 text-emerald-800 dark:text-emerald-200";
+    case "llm":
+      return "bg-violet-100 dark:bg-violet-900/60 text-violet-800 dark:text-violet-200";
     case "web":
       return "bg-sky-100 dark:bg-sky-900/60 text-sky-800 dark:text-sky-200";
     case "manual":

@@ -49,7 +49,15 @@ export type Settings = {
   bulk_recursive_default: boolean;
   bulk_target_dir: string | null;
   bulk_sort_by: BulkSortBy;
+  bulk_llm_fallback: boolean;
   theme: Theme;
+};
+
+export type FilenameDecomposition = {
+  author: string | null;
+  series: string | null;
+  title: string | null;
+  volume: number | null;
 };
 
 export type LLMResponse = {
@@ -77,7 +85,7 @@ export type PdfMeta = {
   author: string | null;
 };
 
-export type LookupSource = "embedded" | "web" | "manual" | "none";
+export type LookupSource = "embedded" | "llm" | "web" | "manual" | "none";
 export type LookupConfidence = "high" | "medium" | "low";
 
 export type BulkEntry = {

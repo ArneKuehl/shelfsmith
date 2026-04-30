@@ -2,6 +2,11 @@ import { invoke } from "@tauri-apps/api/core";
 import { fetch as tauriFetch } from "@tauri-apps/plugin-http";
 import type { BulkEntry, EpubMeta, PdfMeta } from "../types";
 import { basename, extension, formatAuthor } from "./naming";
+import { decomposeFilename } from "./lmstudio";
+
+export type EnrichOpts = {
+  llm: { url: string; model: string } | null;
+};
 
 function makeId(): string {
   return Math.random().toString(36).slice(2) + Date.now().toString(36);
@@ -32,18 +37,28 @@ function emptyEntry(p: string): BulkEntry {
   };
 }
 
+function isComplete(e: BulkEntry): boolean {
+  return !!e.author && !!e.title && !!e.series;
+}
+
 /**
- * Enriches a single entry: tries embedded metadata first, falls back to web lookup.
- * Returns a NEW entry; caller is responsible for updating the store.
+ * Enriches a single entry. Pipeline:
+ *   1. embedded metadata (EPUB OPF / PDF info)
+ *   2. (optional) LLM decomposition of the filename — if step 1 gave nothing
+ *      useful and a local LLM is configured & reachable
+ *   3. web lookup (Google Books) — using the cleanest query available so far
  */
 export async function enrichEntry(
   entry: BulkEntry,
   signal?: AbortSignal,
+  opts: EnrichOpts = { llm: null },
 ): Promise<BulkEntry> {
   let next: BulkEntry = { ...entry };
   let embeddedFound = false;
+  let llmFound = false;
   let isbn: string | null = null;
 
+  // Step 1: embedded metadata
   const ext = entry.extension.toLowerCase();
   if (ext === ".epub") {
     try {
@@ -53,7 +68,7 @@ export async function enrichEntry(
       embeddedFound = got.found;
       isbn = m.isbn ?? null;
     } catch {
-      // ignore — fall through to web
+      /* ignore — fall through */
     }
   } else if (ext === ".pdf") {
     try {
@@ -72,8 +87,34 @@ export async function enrichEntry(
 
   if (signal?.aborted) return next;
 
-  // Decide if web lookup is needed
-  const needsLookup = !next.author || !next.title || !next.series;
+  // Step 2: LLM filename decomposition — only if step 1 didn't give us anything
+  // useful and a local LLM is available.
+  if (opts.llm && !embeddedFound) {
+    try {
+      const decomp = await decomposeFilename(
+        opts.llm.url,
+        opts.llm.model,
+        entry.originalName,
+        signal,
+      );
+      if (decomp.author || decomp.title || decomp.series || decomp.volume !== null) {
+        if (!next.author && decomp.author) next.author = formatAuthor(decomp.author);
+        if (!next.title && decomp.title) next.title = decomp.title;
+        if (!next.series && decomp.series) next.series = decomp.series;
+        if (next.volume === null && decomp.volume !== null) next.volume = decomp.volume;
+        next.source = "llm";
+        next.confidence = "medium";
+        llmFound = true;
+      }
+    } catch {
+      /* LLM unavailable or failed — keep going to web step */
+    }
+  }
+
+  if (signal?.aborted) return next;
+
+  // Step 3: web lookup if anything is still missing.
+  const needsLookup = !isComplete(next);
   if (needsLookup) {
     try {
       const query = isbn ? `isbn:${isbn}` : buildQueryFromEntry(next);
@@ -83,16 +124,16 @@ export async function enrichEntry(
         if (!next.author && hit.author) next.author = formatAuthor(hit.author);
         if (!next.series && hit.series) next.series = hit.series;
         if (next.volume === null && hit.volume !== null) next.volume = hit.volume;
-        if (!embeddedFound) {
+        if (!embeddedFound && !llmFound) {
           next.source = "web";
           next.confidence = "medium";
         }
-      } else if (!embeddedFound) {
+      } else if (!embeddedFound && !llmFound) {
         next.source = "none";
         next.confidence = "low";
       }
     } catch {
-      // network failure — leave as-is
+      /* network failure — leave as-is */
     }
   } else if (embeddedFound) {
     next.confidence = "high";
@@ -137,10 +178,14 @@ function normalizeFileAs(fileAs: string): string {
 }
 
 function buildQueryFromEntry(e: BulkEntry): string {
+  // If we already have title/author (e.g. from LLM decomposition), use those —
+  // they make for a much cleaner web query than the raw filename.
+  const parts: string[] = [];
+  if (e.title) parts.push(e.title);
+  if (e.author) parts.push(e.author);
+  if (parts.length > 0) return parts.join(" ");
   const stem = e.originalName.replace(/\.[^.]+$/, "");
-  // strip common noise
-  const cleaned = stem.replace(/[_\-\.]+/g, " ").replace(/\s+/g, " ").trim();
-  return cleaned;
+  return stem.replace(/[_\-\.]+/g, " ").replace(/\s+/g, " ").trim();
 }
 
 type GoogleHit = {

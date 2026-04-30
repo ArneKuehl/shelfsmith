@@ -3,7 +3,8 @@ import { open } from "@tauri-apps/plugin-dialog";
 import { invoke } from "@tauri-apps/api/core";
 import { useStore, bulkTargetPath } from "../../lib/store";
 import { saveSettings } from "../../lib/persist";
-import { enrichEntry, scanFolder } from "../../lib/bulk";
+import { enrichEntry, scanFolder, type EnrichOpts } from "../../lib/bulk";
+import { checkAvailable } from "../../lib/lmstudio";
 import { BulkPreviewTable } from "./BulkPreviewTable";
 import type { BulkEntry, BulkSortBy, RenameResult } from "../../types";
 
@@ -27,6 +28,7 @@ export function BulkTab() {
 
   const [folder, setFolder] = useState<string | null>(null);
   const [recursive, setRecursive] = useState(settings.bulk_recursive_default);
+  const [llmActive, setLlmActive] = useState<null | boolean>(null);
   const abortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
@@ -62,13 +64,22 @@ export function BulkTab() {
         setError("Keine unterstützten Dateien gefunden.");
         return;
       }
+      // LLM availability check up front so we don't probe per file.
+      let opts: EnrichOpts = { llm: null };
+      if (settings.bulk_llm_fallback) {
+        const ok = await checkAvailable(settings.lmstudio_url);
+        setLlmActive(ok);
+        if (ok) opts = { llm: { url: settings.lmstudio_url, model: settings.model } };
+      } else {
+        setLlmActive(null);
+      }
       setProgress({ done: 0, total: fresh.length });
       let done = 0;
       for (const e of fresh) {
         if (signal.aborted) break;
         upsert({ ...e, status: "scanning" });
         try {
-          const enriched = await enrichEntry(e, signal);
+          const enriched = await enrichEntry(e, signal, opts);
           upsert(enriched);
         } catch (err) {
           upsert({
@@ -133,6 +144,8 @@ export function BulkTab() {
         targetDir={settings.bulk_target_dir}
         totalCount={entries.length}
         sortBy={settings.bulk_sort_by}
+        llmEnabled={settings.bulk_llm_fallback}
+        llmActive={llmActive}
         onPickFolder={pickFolder}
         onPickTarget={pickTargetDir}
         onClearTarget={() => persistSetting({ bulk_target_dir: null })}
@@ -163,6 +176,8 @@ function Toolbar(props: {
   targetDir: string | null;
   totalCount: number;
   sortBy: BulkSortBy;
+  llmEnabled: boolean;
+  llmActive: null | boolean;
   onPickFolder: () => void;
   onPickTarget: () => void;
   onClearTarget: () => void;
@@ -275,6 +290,26 @@ function Toolbar(props: {
       {props.totalCount > 0 && (
         <span className="text-xs text-slate-500 pb-2 self-end">
           {props.totalCount} Datei(en)
+        </span>
+      )}
+      {props.llmEnabled && (
+        <span
+          className={`text-xs pb-2 self-end ${
+            props.llmActive === true
+              ? "text-emerald-700 dark:text-emerald-300"
+              : props.llmActive === false
+                ? "text-amber-700 dark:text-amber-300"
+                : "text-slate-500"
+          }`}
+          title={
+            props.llmActive === true
+              ? "Lokales LLM erreichbar — wird als Fallback genutzt"
+              : props.llmActive === false
+                ? "Lokales LLM nicht erreichbar — Schritt wird übersprungen"
+                : "LLM-Status wird beim Scannen geprüft"
+          }
+        >
+          {props.llmActive === true ? "LLM ✓" : props.llmActive === false ? "LLM ✗" : "LLM ?"}
         </span>
       )}
     </div>
