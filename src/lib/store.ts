@@ -88,6 +88,8 @@ const DEFAULT_SETTINGS: Settings = {
   move_target_dir: null,
   bulk_recursive_default: true,
   bulk_target_dir: null,
+  bulk_sort_by: "author",
+  theme: "dark",
 };
 
 const ALLOWED_EXT = /\.(epub|pdf|mobi|azw3)$/i;

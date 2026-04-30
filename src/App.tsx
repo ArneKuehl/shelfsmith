@@ -10,8 +10,8 @@ import { BulkTab } from "./components/bulk/BulkTab";
 import { useStore, targetPath } from "./lib/store";
 import { analyze } from "./lib/lmstudio";
 import { findCollisions } from "./lib/collisions";
-import { loadSettings, loadUndo, saveUndo } from "./lib/persist";
-import type { Mode, RenameResult } from "./types";
+import { loadSettings, loadUndo, saveSettings, saveUndo } from "./lib/persist";
+import type { Mode, RenameResult, Theme } from "./types";
 
 export default function App() {
   const {
@@ -39,6 +39,12 @@ export default function App() {
     loadSettings().then((s) => Object.keys(s).length > 0 && setSettings(s));
     loadUndo().then((u) => u && setUndo(u));
   }, [setSettings, setUndo]);
+
+  useEffect(() => {
+    const root = document.documentElement;
+    if (settings.theme === "dark") root.classList.add("dark");
+    else root.classList.remove("dark");
+  }, [settings.theme]);
 
   const selected = entries.filter((e) => e.selected);
   const collisions = findCollisions(entries, settings);
@@ -98,7 +104,16 @@ export default function App() {
 
   return (
     <div className="flex flex-col h-screen">
-      <Tabs mode={mode} onChange={setMode} />
+      <Tabs
+        mode={mode}
+        onChange={setMode}
+        theme={settings.theme}
+        onToggleTheme={() => {
+          const next: Theme = settings.theme === "dark" ? "light" : "dark";
+          setSettings({ theme: next });
+          saveSettings({ ...settings, theme: next }).catch(() => {});
+        }}
+      />
       {mode === "series" ? (
         <>
           <SettingsBar />
@@ -121,7 +136,7 @@ export default function App() {
             <DropZone />
           )}
           {error && (
-            <div className="px-4 py-2 bg-rose-950/60 border-t border-rose-900 text-sm text-rose-200">
+            <div className="px-4 py-2 bg-rose-100 dark:bg-rose-950/60 border-t border-rose-300 dark:border-rose-900 text-sm text-rose-800 dark:text-rose-200">
               {error}
             </div>
           )}
@@ -140,24 +155,42 @@ export default function App() {
   );
 }
 
-function Tabs({ mode, onChange }: { mode: Mode; onChange: (m: Mode) => void }) {
+function Tabs({
+  mode,
+  onChange,
+  theme,
+  onToggleTheme,
+}: {
+  mode: Mode;
+  onChange: (m: Mode) => void;
+  theme: Theme;
+  onToggleTheme: () => void;
+}) {
   const tab = (m: Mode, label: string) => (
     <button
       key={m}
       onClick={() => onChange(m)}
       className={`px-4 py-2 text-sm font-medium border-b-2 ${
         mode === m
-          ? "border-blue-500 text-white"
-          : "border-transparent text-slate-400 hover:text-slate-200"
+          ? "border-blue-500 text-slate-900 dark:text-white"
+          : "border-transparent text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
       }`}
     >
       {label}
     </button>
   );
   return (
-    <div className="flex items-center bg-slate-950 border-b border-slate-800 px-4">
+    <div className="flex items-center bg-white dark:bg-slate-950 border-b border-slate-200 dark:border-slate-800 px-4">
       {tab("series", "Serie")}
       {tab("bulk", "Bibliothek")}
+      <button
+        onClick={onToggleTheme}
+        className="ml-auto my-1 px-3 py-1.5 text-base leading-none rounded border border-slate-300 dark:border-slate-700 text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800"
+        title={theme === "dark" ? "Light Mode" : "Dark Mode"}
+        aria-label="Theme umschalten"
+      >
+        {theme === "dark" ? "☀︎" : "☾"}
+      </button>
     </div>
   );
 }
@@ -180,16 +213,16 @@ function ActionsBar({
   onRename: () => void;
 }) {
   return (
-    <div className="px-4 py-2 border-b border-slate-800 flex items-center gap-2">
+    <div className="px-4 py-2 border-b border-slate-200 dark:border-slate-800 flex items-center gap-2">
       <button
-        className="px-4 py-2 rounded-md bg-blue-600 hover:bg-blue-700 disabled:bg-slate-700 disabled:cursor-not-allowed text-white text-sm font-medium"
+        className="px-4 py-2 rounded-md bg-blue-600 hover:bg-blue-700 disabled:bg-slate-300 dark:disabled:bg-slate-700 disabled:cursor-not-allowed text-white text-sm font-medium"
         onClick={onAnalyze}
         disabled={analyzing || renaming}
       >
         {analyzing ? "Analysiere…" : "Analyse starten"}
       </button>
       <button
-        className="px-4 py-2 rounded-md bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-700 disabled:cursor-not-allowed text-white text-sm font-medium"
+        className="px-4 py-2 rounded-md bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-300 dark:disabled:bg-slate-700 disabled:cursor-not-allowed text-white text-sm font-medium"
         onClick={onRename}
         disabled={blocked || renaming || analyzing}
         title={
@@ -203,7 +236,7 @@ function ActionsBar({
         {renaming ? "Benenne um…" : `${count} Datei(en) umbenennen`}
       </button>
       {collisions > 0 && (
-        <span className="text-xs text-rose-300">⚠ {collisions} Kollision(en)</span>
+        <span className="text-xs text-rose-700 dark:text-rose-300">⚠ {collisions} Kollision(en)</span>
       )}
     </div>
   );

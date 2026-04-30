@@ -14,7 +14,7 @@ export function SettingsBar() {
   };
 
   return (
-    <div className="flex flex-wrap items-end gap-3 border-b border-slate-800 bg-slate-900 px-4 py-3">
+    <div className="flex flex-wrap items-end gap-3 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 px-4 py-3">
       <Field label="LM Studio URL" className="w-64">
         <input
           className="input"
@@ -56,13 +56,13 @@ export function SettingsBar() {
       {settings.move_after_rename && (
         <div className="flex items-center gap-2 pb-2 text-sm">
           <span
-            className="text-slate-300 max-w-xs truncate"
+            className="text-slate-700 dark:text-slate-300 max-w-xs truncate"
             title={settings.move_target_dir ?? "(kein Ordner)"}
           >
             {settings.move_target_dir ?? "(kein Ordner)"}
           </span>
           <button
-            className="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-xs"
+            className="px-2 py-1 rounded bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-xs"
             onClick={async () => {
               const dir = await open({ directory: true, multiple: false });
               if (typeof dir === "string") update({ move_target_dir: dir });
@@ -73,8 +73,9 @@ export function SettingsBar() {
         </div>
       )}
       <style>{`
-        .input { width: 100%; background: rgb(15 23 42); border: 1px solid rgb(51 65 85);
-          border-radius: 6px; padding: 6px 10px; font-size: 13px; color: rgb(226 232 240); }
+        .input { width: 100%; background: rgb(255 255 255); border: 1px solid rgb(203 213 225);
+          border-radius: 6px; padding: 6px 10px; font-size: 13px; color: rgb(15 23 42); }
+        .dark .input { background: rgb(15 23 42); border-color: rgb(51 65 85); color: rgb(226 232 240); }
         .input:focus { outline: none; border-color: rgb(59 130 246); }
       `}</style>
     </div>
@@ -92,7 +93,7 @@ function Field({
 }) {
   return (
     <div className={className}>
-      <label className="block text-xs uppercase tracking-wider text-slate-400 mb-1">
+      <label className="block text-xs uppercase tracking-wider text-slate-600 dark:text-slate-400 mb-1">
         {label}
       </label>
       {children}

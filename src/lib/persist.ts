@@ -19,6 +19,8 @@ export async function loadSettings(): Promise<Partial<Settings>> {
   const moveDir = await s.get<string | null>("move_target_dir");
   const bulkRec = await s.get<boolean>("bulk_recursive_default");
   const bulkDir = await s.get<string | null>("bulk_target_dir");
+  const bulkSort = await s.get<string>("bulk_sort_by");
+  const theme = await s.get<string>("theme");
   if (url) out.lmstudio_url = url;
   if (model) out.model = model;
   if (typeof inclTitle === "boolean") out.include_title_in_name = inclTitle;
@@ -26,6 +28,8 @@ export async function loadSettings(): Promise<Partial<Settings>> {
   if (typeof moveDir === "string" || moveDir === null) out.move_target_dir = moveDir;
   if (typeof bulkRec === "boolean") out.bulk_recursive_default = bulkRec;
   if (typeof bulkDir === "string" || bulkDir === null) out.bulk_target_dir = bulkDir;
+  if (bulkSort === "author" || bulkSort === "series") out.bulk_sort_by = bulkSort;
+  if (theme === "dark" || theme === "light") out.theme = theme;
   return out;
 }
 
@@ -38,6 +42,8 @@ export async function saveSettings(settings: Settings): Promise<void> {
   await s.set("move_target_dir", settings.move_target_dir);
   await s.set("bulk_recursive_default", settings.bulk_recursive_default);
   await s.set("bulk_target_dir", settings.bulk_target_dir);
+  await s.set("bulk_sort_by", settings.bulk_sort_by);
+  await s.set("theme", settings.theme);
 }
 
 export async function loadUndo(): Promise<UndoEntry | null> {

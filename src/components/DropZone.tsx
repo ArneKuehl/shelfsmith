@@ -36,7 +36,7 @@ export function DropZone() {
 
   if (entries.length > 0) {
     return (
-      <div className="px-4 py-2 text-xs text-slate-400 border-b border-slate-800 flex items-center justify-between gap-2">
+      <div className="px-4 py-2 text-xs text-slate-600 dark:text-slate-400 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between gap-2">
         <span>{entries.length} Datei(en) geladen — weiter Dateien droppen oder hinzufügen</span>
         <div className="flex items-center gap-2">
           <button className="btn-ghost" onClick={pickFiles}>+ Dateien hinzufügen</button>
@@ -57,11 +57,11 @@ export function DropZone() {
   return (
     <div
       className={`m-6 flex-1 flex flex-col items-center justify-center rounded-2xl border-2 border-dashed transition-colors ${
-        hover ? "border-blue-500 bg-blue-500/10" : "border-slate-700 bg-slate-900/50"
+        hover ? "border-blue-500 bg-blue-500/10" : "border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50"
       }`}
     >
       <div className="text-2xl font-semibold mb-2">Dateien hierher ziehen</div>
-      <div className="text-sm text-slate-400 mb-6">
+      <div className="text-sm text-slate-600 dark:text-slate-400 mb-6">
         Unterstützt: .epub, .pdf, .mobi, .azw3
       </div>
       <button className="btn-primary" onClick={pickFiles}>Dateien auswählen…</button>
@@ -74,9 +74,13 @@ const btnCss = `
   .btn-primary { background: rgb(37 99 235); color: white; border-radius: 8px;
     padding: 8px 16px; font-size: 14px; font-weight: 500; }
   .btn-primary:hover { background: rgb(29 78 216); }
-  .btn-ghost { color: rgb(148 163 184); padding: 4px 8px; border-radius: 6px; }
-  .btn-ghost:hover { color: white; background: rgb(30 41 59); }
-  .btn-clear { color: rgb(252 165 165); padding: 4px 10px; border-radius: 6px;
-    border: 1px solid rgb(127 29 29); }
-  .btn-clear:hover { color: white; background: rgb(127 29 29); }
+  .btn-ghost { color: rgb(71 85 105); padding: 4px 8px; border-radius: 6px; }
+  .btn-ghost:hover { color: rgb(15 23 42); background: rgb(226 232 240); }
+  .dark .btn-ghost { color: rgb(148 163 184); }
+  .dark .btn-ghost:hover { color: white; background: rgb(30 41 59); }
+  .btn-clear { color: rgb(185 28 28); padding: 4px 10px; border-radius: 6px;
+    border: 1px solid rgb(252 165 165); }
+  .btn-clear:hover { color: white; background: rgb(220 38 38); }
+  .dark .btn-clear { color: rgb(252 165 165); border-color: rgb(127 29 29); }
+  .dark .btn-clear:hover { color: white; background: rgb(127 29 29); }
 `;

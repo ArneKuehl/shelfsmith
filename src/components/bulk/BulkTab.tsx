@@ -5,7 +5,7 @@ import { useStore, bulkTargetPath } from "../../lib/store";
 import { saveSettings } from "../../lib/persist";
 import { enrichEntry, scanFolder } from "../../lib/bulk";
 import { BulkPreviewTable } from "./BulkPreviewTable";
-import type { BulkEntry, RenameResult } from "../../types";
+import type { BulkEntry, BulkSortBy, RenameResult } from "../../types";
 
 export function BulkTab() {
   const settings = useStore((s) => s.settings);
@@ -132,6 +132,7 @@ export function BulkTab() {
         progress={progress}
         targetDir={settings.bulk_target_dir}
         totalCount={entries.length}
+        sortBy={settings.bulk_sort_by}
         onPickFolder={pickFolder}
         onPickTarget={pickTargetDir}
         onClearTarget={() => persistSetting({ bulk_target_dir: null })}
@@ -139,12 +140,13 @@ export function BulkTab() {
           setRecursive(b);
           persistSetting({ bulk_recursive_default: b });
         }}
+        onSortByChange={(by) => persistSetting({ bulk_sort_by: by })}
         onScan={startScan}
         onCancel={cancelScan}
       />
       <BulkPreviewTable onRename={renameSingle} />
       {error && (
-        <div className="px-4 py-2 bg-rose-950/60 border-t border-rose-900 text-sm text-rose-200">
+        <div className="px-4 py-2 bg-rose-100 dark:bg-rose-950/60 border-t border-rose-300 dark:border-rose-900 text-sm text-rose-800 dark:text-rose-200">
           {error}
         </div>
       )}
@@ -160,28 +162,30 @@ function Toolbar(props: {
   progress: { done: number; total: number } | null;
   targetDir: string | null;
   totalCount: number;
+  sortBy: BulkSortBy;
   onPickFolder: () => void;
   onPickTarget: () => void;
   onClearTarget: () => void;
   onToggleRecursive: (b: boolean) => void;
+  onSortByChange: (by: BulkSortBy) => void;
   onScan: () => void;
   onCancel: () => void;
 }) {
   return (
-    <div className="border-b border-slate-800 bg-slate-900 px-4 py-3 flex flex-wrap items-end gap-3">
+    <div className="border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 px-4 py-3 flex flex-wrap items-end gap-3">
       <div className="flex-1 min-w-[16rem]">
-        <label className="block text-xs uppercase tracking-wider text-slate-400 mb-1">
+        <label className="block text-xs uppercase tracking-wider text-slate-600 dark:text-slate-400 mb-1">
           Quellordner
         </label>
         <div className="flex items-center gap-2">
           <span
-            className="flex-1 truncate text-sm text-slate-200 bg-slate-950 border border-slate-700 rounded px-2 py-1.5"
+            className="flex-1 truncate text-sm text-slate-800 dark:text-slate-200 bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded px-2 py-1.5"
             title={props.folder ?? "—"}
           >
             {props.folder ?? "(kein Ordner gewählt)"}
           </span>
           <button
-            className="px-2 py-1.5 rounded bg-slate-800 hover:bg-slate-700 text-xs"
+            className="px-2 py-1.5 rounded bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-xs"
             onClick={props.onPickFolder}
           >
             Ordner wählen…
@@ -196,26 +200,53 @@ function Toolbar(props: {
         />
         Rekursiv
       </label>
+      <div className="pb-2">
+        <label className="block text-xs uppercase tracking-wider text-slate-600 dark:text-slate-400 mb-1">
+          Sortierung
+        </label>
+        <div className="inline-flex rounded overflow-hidden border border-slate-300 dark:border-slate-700">
+          <button
+            className={`px-3 py-1.5 text-xs ${
+              props.sortBy === "author"
+                ? "bg-blue-600 text-white"
+                : "bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-300 dark:hover:bg-slate-700"
+            }`}
+            onClick={() => props.onSortByChange("author")}
+          >
+            Autor
+          </button>
+          <button
+            className={`px-3 py-1.5 text-xs ${
+              props.sortBy === "series"
+                ? "bg-blue-600 text-white"
+                : "bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-300 dark:hover:bg-slate-700"
+            }`}
+            onClick={() => props.onSortByChange("series")}
+          >
+            Serie
+          </button>
+        </div>
+      </div>
       <div className="flex-1 min-w-[16rem]">
-        <label className="block text-xs uppercase tracking-wider text-slate-400 mb-1">
+        <label className="block text-xs uppercase tracking-wider text-slate-600 dark:text-slate-400 mb-1">
           Ziel-Ordner (optional)
         </label>
         <div className="flex items-center gap-2">
           <span
-            className="flex-1 truncate text-sm text-slate-300 bg-slate-950 border border-slate-700 rounded px-2 py-1.5"
+            className="flex-1 truncate text-sm text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded px-2 py-1.5"
             title={props.targetDir ?? "—"}
           >
             {props.targetDir ?? "(am Ort umbenennen)"}
           </span>
           <button
-            className="px-2 py-1.5 rounded bg-slate-800 hover:bg-slate-700 text-xs"
+            className="px-2 py-1.5 rounded bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-xs"
             onClick={props.onPickTarget}
           >
             Wählen…
           </button>
           {props.targetDir && (
             <button
-              className="px-2 py-1.5 rounded bg-slate-800 hover:bg-slate-700 text-xs"
+              className="px-2 py-1.5 rounded bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-xs"
               onClick={props.onClearTarget}
             >
               ×
@@ -234,7 +265,7 @@ function Toolbar(props: {
         </button>
       ) : (
         <button
-          className="px-4 py-2 rounded-md bg-blue-600 hover:bg-blue-700 disabled:bg-slate-700 disabled:cursor-not-allowed text-white text-sm font-medium"
+          className="px-4 py-2 rounded-md bg-blue-600 hover:bg-blue-700 disabled:bg-slate-300 dark:disabled:bg-slate-700 disabled:cursor-not-allowed text-white text-sm font-medium"
           onClick={props.onScan}
           disabled={!props.folder}
         >
@@ -285,7 +316,7 @@ function BulkUndoBar() {
   };
 
   return (
-    <div className="px-4 py-2 border-t border-slate-800 bg-amber-950/40 flex items-center justify-between text-sm">
+    <div className="px-4 py-2 border-t border-slate-200 dark:border-slate-800 bg-amber-100 dark:bg-amber-950/40 flex items-center justify-between text-sm">
       <span>
         Letzte Bulk-Umbenennung um {time} ({undo.pairs.length} Datei(en))
       </span>

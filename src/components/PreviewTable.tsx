@@ -57,7 +57,7 @@ export function PreviewTable() {
           <col style={{ width: 64 }} />
           <col style={{ width: 32 }} />
         </colgroup>
-        <thead className="text-xs uppercase text-slate-400 sticky top-0 bg-slate-950">
+        <thead className="text-xs uppercase text-slate-600 dark:text-slate-400 sticky top-0 bg-white dark:bg-slate-950">
           <tr>
             <th className="text-left px-2 py-2"></th>
             <ResizableTh label="Altname" onResize={(e) => startResize("oldName", e)} />
@@ -130,7 +130,7 @@ function Row({
 }) {
   const dim = !e.selected ? "opacity-40" : "";
   const bad = (hasCollision || hasInvalidName) && e.selected;
-  const rowBg = bad ? "bg-rose-950/40" : "bg-slate-900";
+  const rowBg = bad ? "bg-rose-950/40" : "bg-slate-50 dark:bg-slate-900";
   const rowTooltip = hasCollision
     ? "Kollision: anderer Eintrag bekommt denselben Namen"
     : hasInvalidName
@@ -142,7 +142,7 @@ function Row({
       <td className="px-2 py-2 rounded-l" title={rowTooltip}>
         <input type="checkbox" checked={e.selected} onChange={onToggle} />
       </td>
-      <td className="px-2 py-2 font-mono text-xs text-slate-400" title={e.originalName}>
+      <td className="px-2 py-2 font-mono text-xs text-slate-600 dark:text-slate-400" title={e.originalName}>
         <div className="truncate">{e.originalName}</div>
       </td>
       <td className="px-2 py-2">
@@ -178,20 +178,20 @@ function Row({
         />
       </td>
       <td className="px-2 py-2 font-mono text-xs" title={e.proposedName}>
-        <div className={`truncate ${bad ? "text-rose-300" : "text-emerald-300"}`}>
+        <div className={`truncate ${bad ? "text-rose-700 dark:text-rose-300" : "text-emerald-700 dark:text-emerald-300"}`}>
           {e.proposedName}
         </div>
       </td>
       <td className="px-2 py-2 text-xs">
-        {e.status === "renaming" && <span className="text-amber-400">…</span>}
+        {e.status === "renaming" && <span className="text-amber-600 dark:text-amber-400">…</span>}
         {e.status === "done" && <span className="text-emerald-400">✓</span>}
         {e.status === "error" && (
-          <span className="text-rose-400" title={e.error}>✗</span>
+          <span className="text-rose-600 dark:text-rose-400" title={e.error}>✗</span>
         )}
       </td>
       <td className="px-2 py-2 rounded-r">
         <button
-          className="text-slate-500 hover:text-rose-400"
+          className="text-slate-500 hover:text-rose-600 dark:text-rose-400"
           onClick={onRemove}
           title="Entfernen"
         >
@@ -203,8 +203,9 @@ function Row({
 }
 
 const tableCss = `
-  .cell-input { width: 100%; background: rgb(15 23 42); border: 1px solid rgb(51 65 85);
-    border-radius: 4px; padding: 4px 8px; font-size: 13px; color: rgb(226 232 240); }
+  .cell-input { width: 100%; background: rgb(255 255 255); border: 1px solid rgb(203 213 225);
+    border-radius: 4px; padding: 4px 8px; font-size: 13px; color: rgb(15 23 42); }
+  .dark .cell-input { background: rgb(15 23 42); border-color: rgb(51 65 85); color: rgb(226 232 240); }
   .cell-input:focus { outline: none; border-color: rgb(59 130 246); }
   .resizer { position: absolute; right: 0; top: 0; bottom: 0; width: 6px;
     cursor: col-resize; user-select: none; }

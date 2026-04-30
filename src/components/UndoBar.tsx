@@ -34,7 +34,7 @@ export function UndoBar() {
   };
 
   return (
-    <div className="px-4 py-2 border-t border-slate-800 bg-amber-950/40 flex items-center justify-between text-sm">
+    <div className="px-4 py-2 border-t border-slate-200 dark:border-slate-800 bg-amber-100 dark:bg-amber-950/40 flex items-center justify-between text-sm">
       <span>Letzte Umbenennung um {time} ({undo.pairs.length} Datei(en))</span>
       <button
         className="px-3 py-1 rounded-md bg-amber-600 hover:bg-amber-700 text-white text-sm"

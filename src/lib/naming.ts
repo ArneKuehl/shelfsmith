@@ -75,3 +75,43 @@ export function joinPath(dir: string, name: string): string {
   const sep = dir.includes("\\") && !dir.includes("/") ? "\\" : "/";
   return dir.endsWith(sep) ? dir + name : dir + sep + name;
 }
+
+const LEADING_ARTICLES = /^(the|a|an|der|die|das|den|dem|des|le|la|les|el|los|las|il|lo|gli|een)\s+/i;
+const TRAILING_SERIES_NOUNS =
+  /\s+(series|saga|cycle|cycles|trilogy|tetralogy|chronicles|chronicle|novels|sequence|reihe|zyklus|chroniken)$/i;
+
+const COMBINING_MARKS = /[̀-ͯ]/g;
+
+export function normalizeForSort(s: string): string {
+  let v = (s ?? "").trim().toLowerCase();
+  if (!v) return "";
+  v = v.normalize("NFD").replace(COMBINING_MARKS, "");
+  v = v.replace(LEADING_ARTICLES, "");
+  v = v.replace(/[^a-z0-9\s]+/g, " ");
+  v = v.replace(/\s+/g, " ").trim();
+  return v;
+}
+
+export function authorSortKey(author: string): string {
+  const a = (author ?? "").trim();
+  if (!a) return "";
+  const comma = a.indexOf(",");
+  if (comma >= 0) {
+    const last = a.slice(0, comma);
+    const rest = a.slice(comma + 1);
+    return `${normalizeForSort(last)} ${normalizeForSort(rest)}`.trim();
+  }
+  const parts = a.split(/\s+/);
+  if (parts.length >= 2) {
+    const last = parts[parts.length - 1];
+    const rest = parts.slice(0, -1).join(" ");
+    return `${normalizeForSort(last)} ${normalizeForSort(rest)}`.trim();
+  }
+  return normalizeForSort(a);
+}
+
+export function seriesSortKey(series: string): string {
+  const norm = normalizeForSort(series);
+  if (!norm) return "";
+  return norm.replace(TRAILING_SERIES_NOUNS, "").trim();
+}

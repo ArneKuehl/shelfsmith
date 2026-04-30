@@ -36,6 +36,10 @@ export type UndoEntry = {
 
 export type Mode = "series" | "bulk";
 
+export type BulkSortBy = "author" | "series";
+
+export type Theme = "dark" | "light";
+
 export type Settings = {
   lmstudio_url: string;
   model: string;
@@ -44,6 +48,8 @@ export type Settings = {
   move_target_dir: string | null;
   bulk_recursive_default: boolean;
   bulk_target_dir: string | null;
+  bulk_sort_by: BulkSortBy;
+  theme: Theme;
 };
 
 export type LLMResponse = {
