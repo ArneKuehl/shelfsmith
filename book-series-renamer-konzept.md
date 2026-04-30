@@ -58,12 +58,18 @@ In beiden Modi gibt es Kollisionsprüfung, Undo und persistente Settings.
 
 - Eingabe: ein Ordner, optional rekursiv.
 - Backend-Command `scan_directory` liefert die unterstützten Dateipfade.
-- Pro Datei läuft `enrichEntry`:
-  1. Eingebettete Metadaten lesen (`read_epub_metadata` / `read_pdf_metadata`).
-  2. Bei unzureichenden Daten ein Web-Lookup (z.B. Open Library).
-  3. Andernfalls bleibt der Eintrag mit `source: "none"` zur manuellen Pflege.
-- Jeder Eintrag trägt `source` (`embedded` | `web` | `manual` | `none`) und
-  `confidence` (`high` | `medium` | `low`) — als Badge in der UI sichtbar.
+- Pro Datei läuft `enrichEntry` als dreistufige Pipeline:
+  1. **Embedded** — eingebettete Metadaten lesen (`read_epub_metadata` /
+     `read_pdf_metadata`).
+  2. **LLM-Filename-Decomposition** — falls (1) leer ist und ein lokales LLM
+     erreichbar ist: `decomposeFilename` zerlegt den Dateinamen in Autor /
+     Serie / Titel / Bandnummer. Übersprungen, wenn `bulk_llm_fallback`
+     deaktiviert ist oder `checkAvailable` (kurzer Timeout, einmal pro Scan)
+     fehlschlägt.
+  3. **Web-Lookup** — Google Books, mit Autor/Titel als Query falls vorhanden,
+     sonst dem bereinigten Dateinamen. Füllt fehlende Felder auf.
+- Jeder Eintrag trägt `source` (`embedded` | `llm` | `web` | `manual` | `none`)
+  und `confidence` (`high` | `medium` | `low`) — als Badge in der UI sichtbar.
 - Sortierung umschaltbar zwischen Autor und Serie (siehe Abschnitt 7).
 - Umbenennung erfolgt einzeln pro Zeile (✓-Button), optional mit Verschieben in
   einen frei wählbaren Ziel-Ordner.
@@ -194,11 +200,14 @@ App-Start
    │   5. Umbenennen │                  5. ✓ pro Zeile    │
    │   6. Undo       │                  6. Undo           │
    │
-   └── Theme-Toggle (☀/☾) in der Tab-Leiste
+   └── Theme-Toggle (☀︎/☾) und Einstellungen-Modal (⚙) in der Tab-Leiste
 ```
 
-Beide Modi teilen sich den Tauri-Rename-Command und die Persistenz der
-Settings sowie des letzten Undo.
+Beide Modi teilen sich den Tauri-Rename-Command, die Persistenz der Settings
+und das letzte Undo. Alle Settings werden zentral im Modal `SettingsScreen`
+verwaltet — pro Bereich gegliedert: LM Studio, Serien-Modus, Bibliothek-Modus,
+Darstellung. Ein „Verbindung testen"-Button im LM-Studio-Bereich nutzt
+`checkAvailable`.
 
 ---
 
@@ -216,8 +225,9 @@ App-Data-Pfad). Tatsächliche Felder (`Settings`-Typ in `src/types.ts`):
   "move_target_dir": null,
   "bulk_recursive_default": true,
   "bulk_target_dir": null,
-  "bulk_sort_by": "author",   // "author" | "series"
-  "theme": "dark"             // "dark" | "light"
+  "bulk_sort_by": "author",      // "author" | "series"
+  "bulk_llm_fallback": true,     // LLM-Fallback im Bibliothek-Modus
+  "theme": "dark"                // "dark" | "light"
 }
 ```
 
@@ -248,6 +258,8 @@ Implementiert seit dem MVP:
 - ✅ Bibliothek-Modus mit Ordner-Scan und EPUB/PDF-Metadaten.
 - ✅ Live-Sortierung mit Fuzzy-Matching für Serien.
 - ✅ Dark/Light-Theme.
+- ✅ Zentraler Settings-Screen (Modal über ⚙ in der Tab-Leiste).
+- ✅ LLM-Filename-Decomposition als Fallback im Bibliothek-Modus.
 
 Offen / mögliche Erweiterungen:
 
