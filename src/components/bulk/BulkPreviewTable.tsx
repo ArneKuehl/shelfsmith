@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useStore } from "../../lib/store";
 import { authorSortKey, seriesSortKey } from "../../lib/naming";
 import type { BulkEntry } from "../../types";
@@ -13,31 +13,85 @@ export function BulkPreviewTable({
   const update = useStore((s) => s.updateBulkEntry);
   const remove = useStore((s) => s.removeBulkEntry);
 
-  const sorted = useMemo(() => sortEntries(entries, sortBy), [entries, sortBy]);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const lastSortedRef = useRef<BulkEntry[]>([]);
+  const scrollerRef = useRef<HTMLDivElement | null>(null);
+  const [showScrollTop, setShowScrollTop] = useState(false);
+
+  const sorted = useMemo(() => {
+    if (editingId) {
+      // While editing: keep previous order, but pick up content updates and
+      // gracefully handle entries added/removed during the edit.
+      const prev = lastSortedRef.current;
+      const byId = new Map(entries.map((e) => [e.id, e]));
+      const next: BulkEntry[] = [];
+      const seen = new Set<string>();
+      for (const old of prev) {
+        const cur = byId.get(old.id);
+        if (cur) {
+          next.push(cur);
+          seen.add(cur.id);
+        }
+      }
+      for (const e of entries) if (!seen.has(e.id)) next.push(e);
+      lastSortedRef.current = next;
+      return next;
+    }
+    const fresh = sortEntries(entries, sortBy);
+    lastSortedRef.current = fresh;
+    return fresh;
+  }, [entries, sortBy, editingId]);
+
+  useEffect(() => {
+    const el = scrollerRef.current;
+    if (!el) return;
+    const onScroll = () => setShowScrollTop(el.scrollTop > 200);
+    el.addEventListener("scroll", onScroll, { passive: true });
+    onScroll();
+    return () => el.removeEventListener("scroll", onScroll);
+  }, [entries.length]);
 
   if (entries.length === 0) return null;
 
   let lastSeriesKey: string | null = null;
 
   return (
-    <div className="flex-1 overflow-auto px-4 py-3 space-y-2">
-      {sorted.map((e) => {
-        const key = seriesSortKey(e.series);
-        const showHeader = sortBy === "series" && key !== lastSeriesKey;
-        if (showHeader) lastSeriesKey = key;
-        return (
-          <div key={e.id}>
-            {showHeader && <SeriesGroupHeader label={e.series || "(ohne Serie)"} />}
-            <Row
-              entry={e}
-              onChange={(patch) => update(e.id, patch, true)}
-              onRemove={() => remove(e.id)}
-              onRename={() => onRename(e)}
-            />
-          </div>
-        );
-      })}
-      <style>{css}</style>
+    <div className="relative flex-1 min-h-0">
+      <div ref={scrollerRef} className="absolute inset-0 overflow-auto px-4 py-3 space-y-2">
+        {sorted.map((e) => {
+          const key = seriesSortKey(e.series);
+          const showHeader = sortBy === "series" && key !== lastSeriesKey;
+          if (showHeader) lastSeriesKey = key;
+          return (
+            <div key={e.id}>
+              {showHeader && <SeriesGroupHeader label={e.series || "(ohne Serie)"} />}
+              <Row
+                entry={e}
+                onChange={(patch) => update(e.id, patch, true)}
+                onRemove={() => remove(e.id)}
+                onRename={() => onRename(e)}
+                onEditStart={() => setEditingId(e.id)}
+                onEditEnd={() => setEditingId((cur) => (cur === e.id ? null : cur))}
+              />
+            </div>
+          );
+        })}
+        <style>{css}</style>
+      </div>
+      {showScrollTop && (
+        <button
+          type="button"
+          onClick={() =>
+            scrollerRef.current?.scrollTo({ top: 0, behavior: "smooth" })
+          }
+          className="absolute bottom-4 right-4 z-10 px-3 py-2 rounded-full shadow-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 text-sm flex items-center gap-1.5"
+          title="Zum Anfang"
+          aria-label="Zum Anfang der Liste"
+        >
+          <span aria-hidden>↑</span>
+          <span>Anfang</span>
+        </button>
+      )}
     </div>
   );
 }
@@ -90,12 +144,17 @@ function Row({
   onChange,
   onRemove,
   onRename,
+  onEditStart,
+  onEditEnd,
 }: {
   entry: BulkEntry;
   onChange: (patch: Partial<BulkEntry>) => void;
   onRemove: () => void;
   onRename: () => void;
+  onEditStart: () => void;
+  onEditEnd: () => void;
 }) {
+  const editProps = { onFocus: onEditStart, onBlur: onEditEnd };
   const rowBg =
     e.status === "error"
       ? "bg-rose-50 dark:bg-rose-950/30 border-rose-200 dark:border-rose-900/60"
@@ -115,6 +174,7 @@ function Row({
             value={e.author}
             placeholder="Nachname, Vorname"
             onChange={(ev) => onChange({ author: ev.target.value })}
+            {...editProps}
           />
         </Field>
         <Field label="Serie" className="flex-1 min-w-[12rem]">
@@ -123,6 +183,7 @@ function Row({
             value={e.series}
             placeholder="—"
             onChange={(ev) => onChange({ series: ev.target.value })}
+            {...editProps}
           />
         </Field>
         <Field label="Band" className="w-20">
@@ -134,6 +195,7 @@ function Row({
               const v = ev.target.value.trim();
               onChange({ volume: v === "" ? null : Number.parseInt(v, 10) || null });
             }}
+            {...editProps}
           />
         </Field>
         <Field label="Bis" className="w-20">
@@ -145,6 +207,7 @@ function Row({
               const v = ev.target.value.trim();
               onChange({ volumeEnd: v === "" ? null : Number.parseInt(v, 10) || null });
             }}
+            {...editProps}
           />
         </Field>
         <Field label="Titel" className="flex-[2] min-w-[16rem]">
@@ -153,6 +216,7 @@ function Row({
             value={e.title ?? ""}
             placeholder="—"
             onChange={(ev) => onChange({ title: ev.target.value || null })}
+            {...editProps}
           />
         </Field>
       </div>
