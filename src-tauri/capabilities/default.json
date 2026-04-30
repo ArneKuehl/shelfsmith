@@ -19,6 +19,16 @@
         { "url": "http://localhost:*" },
         { "url": "http://127.0.0.1:*" },
         { "url": "http://0.0.0.0:*" },
+        { "url": "http://192.168.*.*:*" },
+        { "url": "http://10.*.*.*:*" },
+        { "url": "http://172.*.*.*:*" },
+        { "url": "http://*.local:*" },
+        { "url": "http://*.lan:*" },
+        { "url": "https://192.168.*.*:*" },
+        { "url": "https://10.*.*.*:*" },
+        { "url": "https://172.*.*.*:*" },
+        { "url": "https://*.local:*" },
+        { "url": "https://*.lan:*" },
         { "url": "https://www.googleapis.com/" },
         { "url": "https://openlibrary.org/" }
       ]
