@@ -24,8 +24,13 @@ export function formatAuthor(raw: string): string {
 }
 
 export function padVolume(volume: number, max: number): string {
-  const width = Math.max(2, String(Math.max(max, 1)).length);
-  return String(volume).padStart(width, "0");
+  const maxInt = Math.max(Math.floor(Math.abs(max)), 1);
+  const width = Math.max(2, String(maxInt).length);
+  const s = String(volume);
+  const dot = s.indexOf(".");
+  const intPart = dot >= 0 ? s.slice(0, dot) : s;
+  const fracPart = dot >= 0 ? s.slice(dot) : "";
+  return intPart.padStart(width, "0") + fracPart;
 }
 
 export function maxVolume(entries: FileEntry[]): number {

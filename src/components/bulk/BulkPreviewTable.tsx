@@ -1,6 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { openPath } from "@tauri-apps/plugin-opener";
 import { useStore } from "../../lib/store";
-import { authorSortKey, seriesSortKey } from "../../lib/naming";
+import { authorSortKey, seriesSortKey, formatAuthor } from "../../lib/naming";
+import { decomposeFilename } from "../../lib/lmstudio";
+import { lookupGoogleBooks } from "../../lib/bulk";
 import type { BulkEntry } from "../../types";
 
 export function BulkPreviewTable({
@@ -10,13 +13,70 @@ export function BulkPreviewTable({
 }) {
   const entries = useStore((s) => s.bulkEntries);
   const sortBy = useStore((s) => s.settings.bulk_sort_by);
+  const settings = useStore((s) => s.settings);
   const update = useStore((s) => s.updateBulkEntry);
   const remove = useStore((s) => s.removeBulkEntry);
+
+  async function handleLlmQuery(entry: BulkEntry) {
+    update(entry.id, { status: "scanning" }, false);
+    try {
+      const decomp = await decomposeFilename(
+        settings.lmstudio_url,
+        settings.model,
+        entry.originalName,
+      );
+      const patch: Partial<BulkEntry> = {
+        status: "ok",
+        source: "llm",
+        confidence: "medium",
+        llmPrompt: decomp.prompt,
+        llmRaw: decomp.raw,
+      };
+      if (decomp.author) patch.author = formatAuthor(decomp.author);
+      if (decomp.series) patch.series = decomp.series;
+      if (decomp.title) patch.title = decomp.title;
+      if (decomp.volume !== null) patch.volume = decomp.volume;
+
+      // Sanitize via web lookup using the LLM-derived data.
+      try {
+        const queryParts = [patch.title ?? entry.title, patch.author ?? entry.author].filter(Boolean);
+        if (queryParts.length > 0) {
+          const hit = await lookupGoogleBooks(queryParts.join(" "));
+          if (hit) {
+            if (hit.title) patch.title = hit.title;
+            if (hit.author) patch.author = formatAuthor(hit.author);
+            if (hit.series) patch.series = hit.series;
+            if (hit.volume !== null) patch.volume = hit.volume;
+            patch.source = "web";
+            patch.confidence = "high";
+          }
+        }
+      } catch {
+        /* web unreachable — keep LLM result */
+      }
+
+      update(entry.id, patch, true);
+    } catch (err) {
+      update(entry.id, {
+        status: "error",
+        error: err instanceof Error ? err.message : String(err),
+      }, false);
+    }
+  }
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const lastSortedRef = useRef<BulkEntry[]>([]);
   const scrollerRef = useRef<HTMLDivElement | null>(null);
   const [showScrollTop, setShowScrollTop] = useState(false);
+  const [widths, setWidths] = useState<ColWidths>(loadWidths);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(WIDTHS_KEY, JSON.stringify(widths));
+    } catch {
+      /* ignore quota / privacy mode */
+    }
+  }, [widths]);
 
   const sorted = useMemo(() => {
     if (editingId) {
@@ -57,25 +117,32 @@ export function BulkPreviewTable({
 
   return (
     <div className="relative flex-1 min-h-0">
-      <div ref={scrollerRef} className="absolute inset-0 overflow-auto px-4 py-3 space-y-2">
-        {sorted.map((e) => {
-          const key = seriesSortKey(e.series);
-          const showHeader = sortBy === "series" && key !== lastSeriesKey;
-          if (showHeader) lastSeriesKey = key;
-          return (
-            <div key={e.id}>
-              {showHeader && <SeriesGroupHeader label={e.series || "(ohne Serie)"} />}
-              <Row
-                entry={e}
-                onChange={(patch) => update(e.id, patch, true)}
-                onRemove={() => remove(e.id)}
-                onRename={() => onRename(e)}
-                onEditStart={() => setEditingId(e.id)}
-                onEditEnd={() => setEditingId((cur) => (cur === e.id ? null : cur))}
-              />
-            </div>
-          );
-        })}
+      <div ref={scrollerRef} className="absolute inset-0 overflow-auto">
+        <div className="min-w-max px-4 py-3">
+          <ColumnHeaders widths={widths} setWidths={setWidths} />
+          <div className="space-y-2 pt-2">
+            {sorted.map((e) => {
+              const key = seriesSortKey(e.series);
+              const showHeader = sortBy === "series" && key !== lastSeriesKey;
+              if (showHeader) lastSeriesKey = key;
+              return (
+                <div key={e.id}>
+                  {showHeader && <SeriesGroupHeader label={e.series || "(ohne Serie)"} />}
+                  <Row
+                    entry={e}
+                    widths={widths}
+                    onChange={(patch) => update(e.id, patch, true)}
+                    onRemove={() => remove(e.id)}
+                    onRename={() => onRename(e)}
+                    onQueryLlm={() => handleLlmQuery(e)}
+                    onEditStart={() => setEditingId(e.id)}
+                    onEditEnd={() => setEditingId((cur) => (cur === e.id ? null : cur))}
+                  />
+                </div>
+              );
+            })}
+          </div>
+        </div>
         <style>{css}</style>
       </div>
       {showScrollTop && (
@@ -84,7 +151,7 @@ export function BulkPreviewTable({
           onClick={() =>
             scrollerRef.current?.scrollTo({ top: 0, behavior: "smooth" })
           }
-          className="absolute bottom-4 right-4 z-10 px-3 py-2 rounded-full shadow-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 text-sm flex items-center gap-1.5"
+          className="absolute bottom-4 left-4 z-10 px-3 py-2 rounded-full shadow-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 text-sm flex items-center gap-1.5"
           title="Zum Anfang"
           aria-label="Zum Anfang der Liste"
         >
@@ -139,21 +206,61 @@ function sortEntries(entries: BulkEntry[], by: "author" | "series"): BulkEntry[]
   return decorated.map((d) => d.e);
 }
 
+function LlmInfoPopup({ prompt, raw, onClose }: { prompt: string; raw: string; onClose: () => void }) {
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+      onClick={onClose}
+    >
+      <div
+        className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg shadow-xl w-[680px] max-w-[95vw] max-h-[80vh] flex flex-col"
+        onClick={(ev) => ev.stopPropagation()}
+      >
+        <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200 dark:border-slate-700">
+          <span className="text-sm font-medium text-slate-700 dark:text-slate-200">LLM-Details</span>
+          <button
+            type="button"
+            className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-lg leading-none"
+            onClick={onClose}
+          >
+            ✕
+          </button>
+        </div>
+        <div className="overflow-auto p-4 space-y-4 flex-1">
+          <section>
+            <h3 className="text-xs uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5 font-medium">Prompt</h3>
+            <pre className="font-mono text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded p-3 whitespace-pre-wrap break-words text-slate-700 dark:text-slate-300">{prompt}</pre>
+          </section>
+          <section>
+            <h3 className="text-xs uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5 font-medium">LLM-Antwort (roh)</h3>
+            <pre className="font-mono text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded p-3 whitespace-pre-wrap break-words text-slate-700 dark:text-slate-300">{raw}</pre>
+          </section>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function Row({
   entry: e,
+  widths,
   onChange,
   onRemove,
   onRename,
+  onQueryLlm,
   onEditStart,
   onEditEnd,
 }: {
   entry: BulkEntry;
+  widths: ColWidths;
   onChange: (patch: Partial<BulkEntry>) => void;
   onRemove: () => void;
   onRename: () => void;
+  onQueryLlm: () => void;
   onEditStart: () => void;
   onEditEnd: () => void;
 }) {
+  const [showLlmInfo, setShowLlmInfo] = useState(false);
   const editProps = { onFocus: onEditStart, onBlur: onEditEnd };
   const rowBg =
     e.status === "error"
@@ -166,6 +273,13 @@ function Row({
 
   return (
     <div className={`rounded-md border ${rowBg} px-3 py-2`}>
+      {showLlmInfo && e.llmPrompt != null && e.llmRaw != null && (
+        <LlmInfoPopup
+          prompt={e.llmPrompt}
+          raw={e.llmRaw}
+          onClose={() => setShowLlmInfo(false)}
+        />
+      )}
       {/* Row 1: editable fields */}
       <div className="flex items-end gap-2">
         <Field label="Autor" className="flex-1 min-w-[14rem]">
@@ -187,27 +301,19 @@ function Row({
           />
         </Field>
         <Field label="Band" className="w-20">
-          <input
-            className="cell-input text-center"
-            value={e.volume ?? ""}
-            placeholder="—"
-            onChange={(ev) => {
-              const v = ev.target.value.trim();
-              onChange({ volume: v === "" ? null : Number.parseInt(v, 10) || null });
-            }}
-            {...editProps}
+          <VolumeInput
+            value={e.volume}
+            onCommit={(v) => onChange({ volume: v })}
+            onEditStart={onEditStart}
+            onEditEnd={onEditEnd}
           />
         </Field>
         <Field label="Bis" className="w-20">
-          <input
-            className="cell-input text-center"
-            value={e.volumeEnd ?? ""}
-            placeholder="—"
-            onChange={(ev) => {
-              const v = ev.target.value.trim();
-              onChange({ volumeEnd: v === "" ? null : Number.parseInt(v, 10) || null });
-            }}
-            {...editProps}
+          <VolumeInput
+            value={e.volumeEnd}
+            onCommit={(v) => onChange({ volumeEnd: v })}
+            onEditStart={onEditStart}
+            onEditEnd={onEditEnd}
           />
         </Field>
         <Field label="Titel" className="flex-[2] min-w-[16rem]">
@@ -223,12 +329,16 @@ function Row({
 
       {/* Row 2: original → proposed, source badge, action buttons */}
       <div className="flex items-center gap-3 mt-2">
-        <span
-          className="font-mono text-xs text-slate-500 truncate flex-1 min-w-0"
+        <button
+          type="button"
+          className="font-mono text-xs text-slate-500 truncate flex-1 min-w-0 text-left hover:underline cursor-pointer"
           title={e.originalPath}
+          onClick={() => {
+            openPath(e.originalPath).catch((err) => console.error("openPath failed", err));
+          }}
         >
           {e.originalName}
-        </span>
+        </button>
         <span className="text-slate-500 dark:text-slate-600 text-xs">→</span>
         <span
           className={`font-mono text-xs truncate flex-[2] min-w-0 ${
@@ -238,12 +348,27 @@ function Row({
         >
           {e.proposedName}
         </span>
-        <span
-          className={`px-1.5 py-0.5 rounded text-xs ${sourceColor(e.source)}`}
-          title={`Konfidenz: ${e.confidence}`}
+        <button
+          type="button"
+          className={`px-1.5 py-0.5 rounded text-xs cursor-pointer hover:opacity-75 active:scale-95 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed ${sourceColor(e.source)}`}
+          title={`Quelle: ${sourceLabel(e.source)} · Konfidenz: ${e.confidence} · Klick: LLM neu befragen`}
+          onClick={onQueryLlm}
+          disabled={e.status === "scanning" || e.status === "renaming"}
         >
           {sourceLabel(e.source)}
-        </span>
+        </button>
+        {e.llmPrompt != null && (
+          <button
+            type="button"
+            className="w-5 h-5 flex items-center justify-center rounded-full text-slate-400 hover:text-violet-600 dark:hover:text-violet-400 hover:bg-violet-50 dark:hover:bg-violet-900/40 transition-colors flex-shrink-0"
+            title="LLM-Prompt und Antwort anzeigen"
+            onClick={() => setShowLlmInfo(true)}
+          >
+            <svg viewBox="0 0 16 16" fill="currentColor" className="w-3.5 h-3.5">
+              <path d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1Zm0 1.5a5.5 5.5 0 1 1 0 11 5.5 5.5 0 0 1 0-11ZM8 5a.75.75 0 1 1 0-1.5A.75.75 0 0 1 8 5Zm-.75 2h1.5v4.5h-1.5V7Z"/>
+            </svg>
+          </button>
+        )}
         {e.status === "scanning" && <span className="text-amber-600 dark:text-amber-400 text-xs">…</span>}
         {e.status === "error" && (
           <span className="text-rose-600 dark:text-rose-400 text-xs" title={e.error}>
@@ -317,6 +442,47 @@ function sourceColor(s: BulkEntry["source"]): string {
     case "none":
       return "bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400";
   }
+}
+
+function VolumeInput({
+  value,
+  onCommit,
+  onEditStart,
+  onEditEnd,
+}: {
+  value: number | null;
+  onCommit: (v: number | null) => void;
+  onEditStart: () => void;
+  onEditEnd: () => void;
+}) {
+  const [text, setText] = useState<string | null>(null);
+  const display = text ?? (value === null ? "" : String(value));
+
+  return (
+    <input
+      className="cell-input text-center"
+      value={display}
+      placeholder="—"
+      inputMode="decimal"
+      onFocus={() => {
+        setText(value === null ? "" : String(value));
+        onEditStart();
+      }}
+      onChange={(ev) => {
+        const raw = ev.target.value;
+        if (!/^-?\d*[.,]?\d*$/.test(raw)) return;
+        setText(raw);
+        const norm = raw.trim().replace(",", ".");
+        if (norm === "" || norm === "-") return onCommit(null);
+        const n = Number.parseFloat(norm);
+        if (Number.isFinite(n)) onCommit(n);
+      }}
+      onBlur={() => {
+        setText(null);
+        onEditEnd();
+      }}
+    />
+  );
 }
 
 const css = `

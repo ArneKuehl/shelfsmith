@@ -2,7 +2,9 @@ import { useEffect, useState } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
 import { useStore } from "../lib/store";
 import { saveSettings } from "../lib/persist";
-import { checkAvailable } from "../lib/lmstudio";
+import { checkAvailableDetailed } from "../lib/lmstudio";
+import { appendConnectionLog, getConnectionLogPath } from "../lib/log";
+import { openPath } from "@tauri-apps/plugin-opener";
 import type { Settings } from "../types";
 
 export function SettingsScreen({ onClose }: { onClose: () => void }) {
@@ -10,8 +12,16 @@ export function SettingsScreen({ onClose }: { onClose: () => void }) {
   const setSettings = useStore((s) => s.setSettings);
   const recompute = useStore((s) => s.recomputeNames);
   const recomputeBulk = useStore((s) => s.recomputeAllBulkNames);
+  const libSettings = useStore((s) => s.librarySettings);
+  const setLibSettings = useStore((s) => s.setLibrarySettings);
 
   const [llmStatus, setLlmStatus] = useState<"unknown" | "checking" | "ok" | "fail">("unknown");
+  const [llmDetail, setLlmDetail] = useState<string>("");
+  const [logPath, setLogPath] = useState<string | null>(null);
+
+  useEffect(() => {
+    getConnectionLogPath().then(setLogPath);
+  }, []);
 
   const update = (patch: Partial<Settings>) => {
     setSettings(patch);
@@ -22,8 +32,28 @@ export function SettingsScreen({ onClose }: { onClose: () => void }) {
 
   const probe = async () => {
     setLlmStatus("checking");
-    const ok = await checkAvailable(settings.lmstudio_url);
-    setLlmStatus(ok ? "ok" : "fail");
+    setLlmDetail("");
+    const r = await checkAvailableDetailed(settings.lmstudio_url);
+    const detail = r.ok
+      ? `${r.status} ${r.statusText ?? ""} (${r.durationMs} ms)`.trim()
+      : r.error
+        ? `${r.error} (${r.durationMs} ms)`
+        : `HTTP ${r.status ?? "?"} ${r.statusText ?? ""} (${r.durationMs} ms)`.trim();
+    setLlmStatus(r.ok ? "ok" : "fail");
+    setLlmDetail(detail);
+    const path = await appendConnectionLog(
+      `probe url=${r.url} ok=${r.ok} ${detail.replace(/\s+/g, " ")}`,
+    );
+    if (path) setLogPath(path);
+  };
+
+  const openLog = async () => {
+    if (!logPath) return;
+    try {
+      await openPath(logPath);
+    } catch (e) {
+      console.warn("open log failed", e);
+    }
   };
 
   useEffect(() => {
@@ -89,7 +119,28 @@ export function SettingsScreen({ onClose }: { onClose: () => void }) {
                   Nicht erreichbar
                 </span>
               )}
+              {llmStatus === "ok" && llmDetail && (
+                <span className="text-xs text-slate-500 dark:text-slate-400">{llmDetail}</span>
+              )}
             </div>
+            {llmStatus === "fail" && llmDetail && (
+              <div className="text-xs text-rose-700 dark:text-rose-300 break-all">
+                {llmDetail}
+              </div>
+            )}
+            {logPath && (
+              <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
+                <span className="truncate" title={logPath}>
+                  Log: {logPath}
+                </span>
+                <button
+                  onClick={openLog}
+                  className="px-2 py-0.5 rounded bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700"
+                >
+                  Öffnen
+                </button>
+              </div>
+            )}
           </Section>
 
           <Section title="Serien-Modus">
@@ -148,6 +199,36 @@ export function SettingsScreen({ onClose }: { onClose: () => void }) {
               }}
               onClear={() => update({ bulk_target_dir: null })}
             />
+          </Section>
+
+          <Section title="Aufräumen-Modus">
+            <Toggle
+              checked={libSettings.titleCase}
+              onChange={(v) => setLibSettings({ titleCase: v })}
+              label="Title-Case-Normalisierung"
+              hint="Erzwingt Großschreibung am Wortanfang bei Autoren- und Seriennamen"
+            />
+            <Row label="Fuzzy-Schwelle (Clustering)">
+              <div className="flex items-center gap-2">
+                <input
+                  type="range"
+                  min="0.7"
+                  max="0.98"
+                  step="0.01"
+                  value={libSettings.fuzzThreshold}
+                  onChange={(e) =>
+                    setLibSettings({ fuzzThreshold: Number.parseFloat(e.target.value) })
+                  }
+                  className="flex-1"
+                />
+                <span className="text-xs text-slate-600 dark:text-slate-400 w-10 text-right">
+                  {libSettings.fuzzThreshold.toFixed(2)}
+                </span>
+              </div>
+              <span className="block text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                Höher = strenger (weniger Matches), niedriger = toleranter (mehr Matches)
+              </span>
+            </Row>
           </Section>
 
           <Section title="Darstellung">

@@ -34,7 +34,7 @@ export type UndoEntry = {
   pairs: RenamePair[];
 };
 
-export type Mode = "series" | "bulk";
+export type Mode = "series" | "bulk" | "library";
 
 export type BulkSortBy = "author" | "series";
 
@@ -104,10 +104,78 @@ export type BulkEntry = {
   confidence: LookupConfidence;
   status: "idle" | "scanning" | "ok" | "renaming" | "renamed" | "error" | "skipped";
   error?: string;
+  llmPrompt?: string;
+  llmRaw?: string;
 };
 
 export type BulkUndoEntry = {
   timestamp: number;
   pairs: RenamePair[];
   removedEntries: BulkEntry[];
+};
+
+// ---------------------------------------------------------------------------
+// Library-Cleanup workspace
+// ---------------------------------------------------------------------------
+
+export type LibraryIssueKind =
+  | "author-variant"
+  | "series-variant"
+  | "duplicate-volume"
+  | "format-duplicate"
+  | "volume-gap"
+  | "range-or-omnibus"
+  | "unpadded-volume"
+  | "unparsable"
+  | "orphan"
+  | "title-case";
+
+export type LibraryIssue = {
+  kind: LibraryIssueKind;
+  message: string;
+};
+
+export type LibrarySuggestionAction = "rename" | "move-duplicate";
+
+export type LibrarySuggestion = {
+  action: LibrarySuggestionAction;
+  proposedName: string;
+  proposedPath: string;
+};
+
+export type LibraryEntry = {
+  id: string;
+  originalPath: string;
+  originalName: string;
+  dir: string;
+  extension: string;
+  author: string;
+  series: string;
+  volume: number | null;
+  volumeEnd: number | null;
+  title: string | null;
+  authorKey: string;
+  seriesKey: string;
+  clusterId: string;
+  issues: LibraryIssue[];
+  suggestion: LibrarySuggestion | null;
+  selected: boolean;
+  status: "idle" | "renaming" | "done" | "error";
+  error?: string;
+};
+
+export type LibraryCluster = {
+  id: string;
+  canonicalAuthor: string;
+  canonicalSeries: string;
+  authorKey: string;
+  seriesKey: string;
+  entryIds: string[];
+  issueCount: number;
+  missingVolumes: number[];
+};
+
+export type LibrarySettings = {
+  titleCase: boolean;
+  fuzzThreshold: number;
 };

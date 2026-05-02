@@ -7,6 +7,7 @@ import { ConfirmDialog } from "./components/ConfirmDialog";
 import { UndoBar } from "./components/UndoBar";
 import { SettingsScreen } from "./components/SettingsScreen";
 import { BulkTab } from "./components/bulk/BulkTab";
+import { LibraryTab } from "./components/library/LibraryTab";
 import { useStore, targetPath } from "./lib/store";
 import { analyze } from "./lib/lmstudio";
 import { findCollisions } from "./lib/collisions";
@@ -150,8 +151,10 @@ export default function App() {
             onCancel={() => setConfirm(false)}
           />
         </>
-      ) : (
+      ) : mode === "bulk" ? (
         <BulkTab />
+      ) : (
+        <LibraryTab />
       )}
     </div>
   );
@@ -187,6 +190,7 @@ function Tabs({
     <div className="flex items-center bg-white dark:bg-slate-950 border-b border-slate-200 dark:border-slate-800 px-4">
       {tab("series", "Serie")}
       {tab("bulk", "Bibliothek")}
+      {tab("library", "Aufräumen")}
       <button
         onClick={onToggleTheme}
         className="ml-auto my-1 px-3 py-1.5 text-base leading-none rounded border border-slate-300 dark:border-slate-700 text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800"

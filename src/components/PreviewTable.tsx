@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { openPath } from "@tauri-apps/plugin-opener";
 import { useStore } from "../lib/store";
 import { entryHasCollision, entryHasInvalidName, findCollisions } from "../lib/collisions";
 import type { FileEntry } from "../types";
@@ -143,7 +144,15 @@ function Row({
         <input type="checkbox" checked={e.selected} onChange={onToggle} />
       </td>
       <td className="px-2 py-2 font-mono text-xs text-slate-600 dark:text-slate-400" title={e.originalName}>
-        <div className="truncate">{e.originalName}</div>
+        <button
+          type="button"
+          className="truncate text-left w-full hover:underline cursor-pointer"
+          onClick={() => {
+            openPath(e.originalPath).catch((err) => console.error("openPath failed", err));
+          }}
+        >
+          {e.originalName}
+        </button>
       </td>
       <td className="px-2 py-2">
         <div className="flex items-center gap-1">
@@ -152,8 +161,10 @@ function Row({
             value={e.volume ?? ""}
             placeholder="—"
             onChange={(ev) => {
-              const v = ev.target.value.trim();
-              onChangeVolume(v === "" ? null : Number.parseInt(v, 10) || null);
+              const v = ev.target.value.trim().replace(",", ".");
+              if (v === "") return onChangeVolume(null);
+              const n = Number.parseFloat(v);
+              onChangeVolume(Number.isFinite(n) ? n : null);
             }}
           />
           <span className="text-slate-500 text-xs">–</span>
@@ -163,8 +174,10 @@ function Row({
             placeholder="—"
             title="Endband bei Sammelband, sonst leer"
             onChange={(ev) => {
-              const v = ev.target.value.trim();
-              onChangeVolumeEnd(v === "" ? null : Number.parseInt(v, 10) || null);
+              const v = ev.target.value.trim().replace(",", ".");
+              if (v === "") return onChangeVolumeEnd(null);
+              const n = Number.parseFloat(v);
+              onChangeVolumeEnd(Number.isFinite(n) ? n : null);
             }}
           />
         </div>

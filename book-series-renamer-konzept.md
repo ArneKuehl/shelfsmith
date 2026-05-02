@@ -3,7 +3,7 @@
 ## 1. Ziel der Anwendung
 
 Eine Cross-Platform Desktop-App, die Ebook-Dateien einheitlich umbenennt. Es gibt
-zwei Workflows:
+drei Workflows:
 
 - **Serien-Modus**: Eine Auswahl von Dateien einer einzigen Serie wird per
   Drag & Drop entgegengenommen, gemeinsam von einem lokalen LLM (LM Studio)
@@ -12,8 +12,13 @@ zwei Workflows:
   jede Datei einzeln werden Metadaten ermittelt — bevorzugt aus eingebetteten
   EPUB/PDF-Tags, sonst aus einem Web-Lookup. Pro Datei kann der Vorschlag
   editiert und einzeln umbenannt werden.
+- **Aufräumen-Modus**: Für bestehende, bereits sauber benannte Sammlungen.
+  Analysiert Dateinamen rein lokal (kein LLM, kein Web), gruppiert sie per
+  Fuzzy-Matching in Cluster und erkennt Inkonsistenzen (Autoren-/Serien-
+  Varianten, Duplikate, Format-Konflikte, Bandlücken, Casing). Vorschläge
+  werden als Rename oder Move-to-`_duplicates/` präsentiert.
 
-In beiden Modi gibt es Kollisionsprüfung, Undo und persistente Settings.
+In allen Modi gibt es Kollisionsprüfung, Undo und persistente Settings.
 
 ---
 
@@ -83,6 +88,12 @@ Definiert in `src/types.ts`:
 - `FileEntry` — eine Datei im Serien-Modus (geteiltes `author`/`series` über `SeriesMeta`).
 - `BulkEntry` — eine Datei im Bibliothek-Modus, **selbsttragend** mit `author`,
   `series`, `volume`, `volumeEnd`, `title`, `source`, `confidence`, `status`.
+- `LibraryEntry` — eine Datei im Aufräumen-Modus, mit geparsten Feldern,
+  normalisierten Keys (`authorKey`/`seriesKey`), Cluster-Zuordnung, Issues
+  und optionalem Vorschlag (`LibrarySuggestion`).
+- `LibraryCluster` — eine Autor+Serie-Gruppe mit kanonischer Schreibweise,
+  Eintrags-IDs, Issue-Count und fehlenden Bandnummern.
+- `LibrarySettings` — `titleCase` (default on), `fuzzThreshold` (0.88).
 - `Settings` — siehe Abschnitt 9.
 - `UndoEntry` / `BulkUndoEntry` — speichert die invertierten Rename-Pairs des
   letzten Runs (Bulk-Variante hält zusätzlich die entfernten Einträge, damit
@@ -191,14 +202,14 @@ App-Start
    │
    ├── Theme aus Settings (Dark default) auf <html> anwenden
    │
-   ├── Tab „Serie" ──┐                Tab „Bibliothek" ──┐
-   │                 │                                    │
-   │   1. URL/Modell │                  1. Ordner wählen  │
-   │   2. Drag & Drop│                  2. „Scannen"      │
-   │   3. Analyse    │                  3. Sortieren      │
-   │   4. Editieren  │                  4. Editieren      │
-   │   5. Umbenennen │                  5. ✓ pro Zeile    │
-   │   6. Undo       │                  6. Undo           │
+   ├── Tab „Serie" ──┐       Tab „Bibliothek" ──┐     Tab „Aufräumen" ──┐
+   │                 │                          │                       │
+   │   1. URL/Modell │       1. Ordner wählen   │   1. Ordner wählen   │
+   │   2. Drag & Drop│       2. „Scannen"       │   2. Scan+Analyse    │
+   │   3. Analyse    │       3. Sortieren       │   3. Cluster wählen  │
+   │   4. Editieren  │       4. Editieren       │   4. Issues prüfen   │
+   │   5. Umbenennen │       5. ✓ pro Zeile     │   5. Rename/Move     │
+   │   6. Undo       │       6. Undo            │                      │
    │
    └── Theme-Toggle (☀︎/☾) und Einstellungen-Modal (⚙) in der Tab-Leiste
 ```
@@ -260,6 +271,9 @@ Implementiert seit dem MVP:
 - ✅ Dark/Light-Theme.
 - ✅ Zentraler Settings-Screen (Modal über ⚙ in der Tab-Leiste).
 - ✅ LLM-Filename-Decomposition als Fallback im Bibliothek-Modus.
+- ✅ Aufräumen-Modus: Cluster-basierte Bereinigung bestehender Sammlungen
+  (Fuzzy-Matching, Issue-Erkennung, Rename/Move-Vorschläge, Format-Präferenz
+  EPUB, Lücken-Detection, Title-Case-Normalisierung).
 
 Offen / mögliche Erweiterungen:
 

@@ -97,6 +97,8 @@ export async function enrichEntry(
         entry.originalName,
         signal,
       );
+      next.llmPrompt = decomp.prompt;
+      next.llmRaw = decomp.raw;
       if (decomp.author || decomp.title || decomp.series || decomp.volume !== null) {
         if (!next.author && decomp.author) next.author = formatAuthor(decomp.author);
         if (!next.title && decomp.title) next.title = decomp.title;
@@ -113,20 +115,30 @@ export async function enrichEntry(
 
   if (signal?.aborted) return next;
 
-  // Step 3: web lookup if anything is still missing.
+  // Step 3: web lookup. Runs when (a) something is still missing, or (b) the LLM
+  // produced data and we want to sanitize it against an authoritative source.
   const needsLookup = !isComplete(next);
-  if (needsLookup) {
+  if (needsLookup || llmFound) {
     try {
       const query = isbn ? `isbn:${isbn}` : buildQueryFromEntry(next);
       const hit = await lookupGoogleBooks(query, signal);
       if (hit) {
-        if (!next.title && hit.title) next.title = hit.title;
-        if (!next.author && hit.author) next.author = formatAuthor(hit.author);
-        if (!next.series && hit.series) next.series = hit.series;
-        if (next.volume === null && hit.volume !== null) next.volume = hit.volume;
-        if (!embeddedFound && !llmFound) {
+        if (llmFound) {
+          if (hit.title) next.title = hit.title;
+          if (hit.author) next.author = formatAuthor(hit.author);
+          if (hit.series) next.series = hit.series;
+          if (hit.volume !== null) next.volume = hit.volume;
           next.source = "web";
-          next.confidence = "medium";
+          next.confidence = "high";
+        } else {
+          if (!next.title && hit.title) next.title = hit.title;
+          if (!next.author && hit.author) next.author = formatAuthor(hit.author);
+          if (!next.series && hit.series) next.series = hit.series;
+          if (next.volume === null && hit.volume !== null) next.volume = hit.volume;
+          if (!embeddedFound) {
+            next.source = "web";
+            next.confidence = "medium";
+          }
         }
       } else if (!embeddedFound && !llmFound) {
         next.source = "none";
@@ -161,8 +173,8 @@ function applyEpub(entry: BulkEntry, m: EpubMeta): { entry: BulkEntry; found: bo
     found = true;
   }
   if (m.series_index !== null && m.series_index !== undefined) {
-    const v = Math.round(m.series_index);
-    if (Number.isFinite(v) && v > 0) next.volume = v;
+    const v = m.series_index;
+    if (Number.isFinite(v) && v >= 0) next.volume = v;
   }
   if (found) {
     next.source = "embedded";
@@ -230,24 +242,28 @@ function parseSeries(
   subtitle: string | null,
 ): { series: string | null; volume: number | null; cleanTitle: string | null } {
   if (subtitle) {
-    const m = subtitle.match(/^(.+?)\s+(?:Book|Vol(?:ume)?|Band|#)\s*(\d+)/i);
-    if (m) return { series: m[1].trim(), volume: parseInt(m[2], 10), cleanTitle: title };
+    const m = subtitle.match(/^(.+?)\s+(?:Book|Vol(?:ume)?|Band|#)\s*(\d+(?:[.,]\d+)?)/i);
+    if (m) return { series: m[1].trim(), volume: parseVolume(m[2]), cleanTitle: title };
   }
   if (title) {
-    const m1 = title.match(/^(.+?)\s*\((.+?)\s+(?:Book|Vol(?:ume)?|Band|#)\s*(\d+)\)\s*$/i);
+    const m1 = title.match(/^(.+?)\s*\((.+?)\s+(?:Book|Vol(?:ume)?|Band|#)\s*(\d+(?:[.,]\d+)?)\)\s*$/i);
     if (m1)
       return {
         series: m1[2].trim(),
-        volume: parseInt(m1[3], 10),
+        volume: parseVolume(m1[3]),
         cleanTitle: m1[1].trim(),
       };
-    const m2 = title.match(/^(.+?)\s+(\d+):\s*(.+)$/);
+    const m2 = title.match(/^(.+?)\s+(\d+(?:[.,]\d+)?):\s*(.+)$/);
     if (m2)
       return {
         series: m2[1].trim(),
-        volume: parseInt(m2[2], 10),
+        volume: parseVolume(m2[2]),
         cleanTitle: m2[3].trim(),
       };
   }
   return { series: null, volume: null, cleanTitle: title };
+}
+
+function parseVolume(s: string): number {
+  return Number.parseFloat(s.replace(",", "."));
 }

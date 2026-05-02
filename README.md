@@ -50,7 +50,7 @@ npm run tauri dev
 
 ## Bedienung
 
-Die App hat zwei Tabs:
+Die App hat drei Tabs:
 
 ### Tab „Serie" — eine Serie auf einmal
 
@@ -92,6 +92,33 @@ war (`LLM ✓` / `LLM ✗`). Per Quelle wird in jeder Karte ein Badge angezeigt
    einzeln umbenennen. Optional einen Ziel-Ordner wählen, in den umbenannte
    Dateien verschoben werden.
 
+### Tab „Aufräumen" — Bibliothek bereinigen
+
+Für bestehende Sammlungen, die bereits im Schema `Autor - Serie (Band) - Titel.ext`
+benannt sind, aber über die Zeit Inkonsistenzen angesammelt haben:
+
+- **Autoren-Varianten**: Namensdreher (`Krout, Dakota` ↔ `Dakota, Krout`),
+  Initialien-Schreibweisen (`A.F.` ↔ `A. F.` ↔ `A F`).
+- **Serien-Varianten**: fehlende/überflüssige Artikel (`Riftwar Saga` ↔
+  `The Riftwar Saga`), Tippfehler (`Battlemage` ↔ `Battle Mage`).
+- **Duplikate**: Alternative-Dateien, gleicher Band in mehreren Formaten.
+- **Lücken**: Fehlende Bandnummern werden erkannt und angezeigt.
+- **Title-Case**: Normalisierung der Groß-/Kleinschreibung (ein/ausschaltbar).
+
+Die Analyse läuft rein auf dem Dateinamen (kein Web-Lookup, kein LLM nötig).
+Dateien werden per Fuzzy-Matching (Jaro-Winkler) in Cluster gruppiert, Issues
+erkannt und Korrekturvorschläge generiert.
+
+Aktionen:
+- **Rename**: Vereinheitlichung auf die kanonische Schreibweise des Clusters.
+- **Move**: Duplikate/Format-Varianten werden in `_duplicates/` verschoben
+  (EPUB hat Vorrang; kein Löschen).
+
+1. Quellordner wählen (optional rekursiv).
+2. „Scannen & Analysieren".
+3. Im Cluster-Baum links die gewünschte Serie wählen.
+4. Rechts Issues und Vorschläge prüfen, einzeln oder per Batch anwenden.
+
 ### Einstellungen & Theme
 
 In der Tab-Leiste oben rechts:
@@ -107,6 +134,9 @@ In der Tab-Leiste oben rechts:
 - `src/lib/lmstudio.ts` — LM-Studio-Client (`analyze`, `decomposeFilename`,
   `checkAvailable`)
 - `src/lib/bulk.ts` — Ordner-Scan + dreistufige Enrichment-Pipeline
+- `src/lib/library.ts` — Aufräumen-Pipeline (Parsing, Clustering, Issue-Erkennung)
+- `src/lib/cluster.ts` — Normalisierung, Fuzzy-Match (Jaro-Winkler), Cluster-Aufbau
+- `src/components/library/` — UI für den Aufräumen-Tab (Tree + Table)
 - `src/components/SettingsScreen.tsx` — zentrales Einstellungs-Modal
 - `src/lib/naming.ts` — Sanitize, Bandnummer-Padding, `buildProposedName`,
   Sortier-Schlüssel (`normalizeForSort`, `authorSortKey`, `seriesSortKey`)

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
 import { invoke } from "@tauri-apps/api/core";
 import { useStore, bulkTargetPath } from "../../lib/store";
-import { saveSettings } from "../../lib/persist";
+import { loadBulkCache, saveBulkCache, saveSettings } from "../../lib/persist";
 import { enrichEntry, scanFolder, type EnrichOpts } from "../../lib/bulk";
 import { checkAvailable } from "../../lib/lmstudio";
 import { BulkPreviewTable } from "./BulkPreviewTable";
@@ -29,11 +29,27 @@ export function BulkTab() {
   const [folder, setFolder] = useState<string | null>(null);
   const [recursive, setRecursive] = useState(settings.bulk_recursive_default);
   const [llmActive, setLlmActive] = useState<null | boolean>(null);
+  const [cacheLoaded, setCacheLoaded] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
 
+  // Load cached scan on mount.
   useEffect(() => {
-    setRecursive(settings.bulk_recursive_default);
-  }, [settings.bulk_recursive_default]);
+    loadBulkCache()
+      .then((c) => {
+        if (c) {
+          if (c.folder) setFolder(c.folder);
+          setRecursive(c.recursive);
+          if (c.entries.length > 0) setEntries(c.entries);
+        }
+      })
+      .finally(() => setCacheLoaded(true));
+  }, [setEntries]);
+
+  // Persist scan + manual edits whenever they change (plugin-store autosaves).
+  useEffect(() => {
+    if (!cacheLoaded) return;
+    saveBulkCache({ folder, recursive, entries }).catch(() => {});
+  }, [entries, folder, recursive, cacheLoaded]);
 
   const persistSetting = (patch: Partial<typeof settings>) => {
     setSettings(patch);
@@ -55,6 +71,8 @@ export function BulkTab() {
     setError(null);
     setScanning(true);
     setProgress(null);
+    await saveBulkCache(null).catch(() => {});
+    setEntries([]);
     abortRef.current = new AbortController();
     const signal = abortRef.current.signal;
     try {

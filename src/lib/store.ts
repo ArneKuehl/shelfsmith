@@ -3,6 +3,9 @@ import type {
   BulkEntry,
   BulkUndoEntry,
   FileEntry,
+  LibraryCluster,
+  LibraryEntry,
+  LibrarySettings,
   Mode,
   SeriesMeta,
   Settings,
@@ -37,6 +40,13 @@ type State = {
   bulkUndo: BulkUndoEntry | null;
   bulkProgress: { done: number; total: number } | null;
 
+  // Library mode
+  libraryEntries: LibraryEntry[];
+  libraryClusters: LibraryCluster[];
+  librarySettings: LibrarySettings;
+  libraryScanning: boolean;
+  librarySelectedCluster: string | null;
+
   setMode: (m: Mode) => void;
   setSettings: (s: Partial<Settings>) => void;
   setLastRenameDone: (b: boolean) => void;
@@ -62,6 +72,18 @@ type State = {
   setAnalyzing: (b: boolean) => void;
   setRenaming: (b: boolean) => void;
   setError: (e: string | null) => void;
+
+  // Library
+  setLibraryEntries: (entries: LibraryEntry[]) => void;
+  setLibraryClusters: (clusters: LibraryCluster[]) => void;
+  setLibrarySettings: (s: Partial<LibrarySettings>) => void;
+  setLibraryScanning: (b: boolean) => void;
+  setLibrarySelectedCluster: (id: string | null) => void;
+  toggleLibrarySelected: (id: string) => void;
+  setAllLibrarySelected: (selected: boolean) => void;
+  updateLibraryEntry: (id: string, patch: Partial<LibraryEntry>) => void;
+  updateLibraryCluster: (id: string, patch: Partial<LibraryCluster>) => void;
+  clearLibrary: () => void;
 
   // Bulk
   setBulkEntries: (entries: BulkEntry[]) => void;
@@ -115,6 +137,12 @@ export const useStore = create<State>((set, get) => ({
   bulkRenaming: false,
   bulkUndo: null,
   bulkProgress: null,
+
+  libraryEntries: [],
+  libraryClusters: [],
+  librarySettings: { titleCase: true, fuzzThreshold: 0.88 },
+  libraryScanning: false,
+  librarySelectedCluster: null,
 
   setMode: (mode) => set({ mode, error: null }),
   setSettings: (s) => set((st) => ({ settings: { ...st.settings, ...s } })),
@@ -193,6 +221,32 @@ export const useStore = create<State>((set, get) => ({
   setAnalyzing: (b) => set({ analyzing: b }),
   setRenaming: (b) => set({ renaming: b }),
   setError: (e) => set({ error: e }),
+
+  // Library
+  setLibraryEntries: (entries) => set({ libraryEntries: entries }),
+  setLibraryClusters: (clusters) => set({ libraryClusters: clusters }),
+  setLibrarySettings: (s) =>
+    set((st) => ({ librarySettings: { ...st.librarySettings, ...s } })),
+  setLibraryScanning: (b) => set({ libraryScanning: b }),
+  setLibrarySelectedCluster: (id) => set({ librarySelectedCluster: id }),
+  toggleLibrarySelected: (id) =>
+    set((st) => ({
+      libraryEntries: st.libraryEntries.map((e) =>
+        e.id === id ? { ...e, selected: !e.selected } : e,
+      ),
+    })),
+  setAllLibrarySelected: (selected) =>
+    set((st) => ({ libraryEntries: st.libraryEntries.map((e) => ({ ...e, selected })) })),
+  updateLibraryEntry: (id, patch) =>
+    set((st) => ({
+      libraryEntries: st.libraryEntries.map((e) => (e.id === id ? { ...e, ...patch } : e)),
+    })),
+  updateLibraryCluster: (id, patch) =>
+    set((st) => ({
+      libraryClusters: st.libraryClusters.map((c) => (c.id === id ? { ...c, ...patch } : c)),
+    })),
+  clearLibrary: () =>
+    set({ libraryEntries: [], libraryClusters: [], librarySelectedCluster: null }),
 
   // Bulk
   setBulkEntries: (entries) => set({ bulkEntries: entries }),
@@ -300,5 +354,9 @@ export function bulkProposedName(e: BulkEntry, includeTitle: boolean): string {
 }
 
 function padBulkVolume(v: number): string {
-  return String(v).padStart(2, "0");
+  const s = String(v);
+  const dot = s.indexOf(".");
+  const intPart = dot >= 0 ? s.slice(0, dot) : s;
+  const fracPart = dot >= 0 ? s.slice(dot) : "";
+  return intPart.padStart(2, "0") + fracPart;
 }

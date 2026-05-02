@@ -42,7 +42,9 @@ fn do_rename(pair: &RenamePair) -> RenameResult {
     }
     if let Some(parent) = to.parent() {
         if !parent.as_os_str().is_empty() && !parent.exists() {
-            return err(pair, "Zielordner existiert nicht");
+            if let Err(e) = std::fs::create_dir_all(parent) {
+                return err(pair, &format!("Zielordner konnte nicht angelegt werden: {e}"));
+            }
         }
     }
     match std::fs::rename(from, to) {

@@ -1,6 +1,8 @@
 import { fetch as tauriFetch } from "@tauri-apps/plugin-http";
 import type { FilenameDecomposition, LLMResponse } from "../types";
 
+export type DecomposeResult = FilenameDecomposition & { prompt: string; raw: string };
+
 const SYSTEM_PROMPT = `Du bist ein Experte für Buchserien-Metadaten.
 Du analysierst Dateinamen und extrahierst strukturierte Informationen.
 Antworte AUSSCHLIESSLICH mit einem validen JSON-Objekt nach dem vorgegebenen Schema.`;
@@ -16,8 +18,8 @@ const SCHEMA = {
         type: "object",
         properties: {
           originalName: { type: "string" },
-          volume: { anyOf: [{ type: "integer" }, { type: "null" }] },
-          volumeEnd: { anyOf: [{ type: "integer" }, { type: "null" }] },
+          volume: { anyOf: [{ type: "number" }, { type: "null" }] },
+          volumeEnd: { anyOf: [{ type: "number" }, { type: "null" }] },
           title: { anyOf: [{ type: "string" }, { type: "null" }] },
         },
         required: ["originalName", "volume", "volumeEnd", "title"],
@@ -36,8 +38,9 @@ Analysiere die Namen IM ZUSAMMENHANG und extrahiere:
 - "author": Autor im Format "Nachname Vorname"
 - "series": Name der Buchreihe (einheitlich für alle Dateien)
 - pro Datei:
-  - "volume": Bandnummer als Integer, null wenn nicht erkennbar.
+  - "volume": Bandnummer als Zahl (Integer oder Dezimal wie 0, 0.5, 8.5), null wenn nicht erkennbar.
     Bei Sammelbänden/Omnibus (z.B. "Bände 1-3") die Startnummer (1).
+    Prequels/Vorgeschichten (z.B. "Band 0") als 0; Zwischenbände (z.B. "Band 8.5") als Dezimalzahl.
   - "volumeEnd": bei Sammelbänden die Endnummer (z.B. 3); bei Einzelbänden null.
   - "title": Einzeltitel, null wenn nicht erkennbar.
 
@@ -115,7 +118,7 @@ const DECOMPOSE_SCHEMA = {
     author: { anyOf: [{ type: "string" }, { type: "null" }] },
     series: { anyOf: [{ type: "string" }, { type: "null" }] },
     title: { anyOf: [{ type: "string" }, { type: "null" }] },
-    volume: { anyOf: [{ type: "integer" }, { type: "null" }] },
+    volume: { anyOf: [{ type: "number" }, { type: "null" }] },
   },
   required: ["author", "series", "title", "volume"],
   additionalProperties: false,
@@ -134,7 +137,7 @@ export async function decomposeFilename(
   model: string,
   filename: string,
   signal?: AbortSignal,
-): Promise<FilenameDecomposition> {
+): Promise<DecomposeResult> {
   const url = baseUrl.replace(/\/$/, "") + "/v1/chat/completions";
   const userPrompt = `Zerlege den folgenden Dateinamen:
 "${filename}"
@@ -143,7 +146,7 @@ Gib zurück:
 - "author": Autor im Format "Nachname Vorname" (oder null)
 - "series": Name der Buchreihe (oder null)
 - "title": Einzeltitel des Bandes (oder null)
-- "volume": Bandnummer als Integer (oder null)`;
+- "volume": Bandnummer als Zahl, auch 0 (Prequel) oder Dezimalzahlen wie 0.5 / 8.5 für Zwischenbände (oder null)`;
   let res: Response;
   try {
     res = await tauriFetch(url, {
@@ -152,7 +155,7 @@ Gib zurück:
       signal,
       body: JSON.stringify({
         model,
-        temperature: 0.1,
+        temperature: 0.3,
         messages: [
           { role: "system", content: DECOMPOSE_SYSTEM },
           { role: "user", content: userPrompt },
@@ -188,23 +191,63 @@ Gib zurück:
     title: typeof parsed.title === "string" && parsed.title.trim() ? parsed.title.trim() : null,
     volume:
       typeof parsed.volume === "number" && Number.isFinite(parsed.volume) ? parsed.volume : null,
+    prompt: userPrompt,
+    raw: content,
   };
+}
+
+export type CheckResult = {
+  ok: boolean;
+  url: string;
+  status?: number;
+  statusText?: string;
+  error?: string;
+  durationMs: number;
+};
+
+/**
+ * Detailed health check — returns status code or error reason so the UI can
+ * surface why a probe failed.
+ */
+export async function checkAvailableDetailed(
+  baseUrl: string,
+  timeoutMs = 5000,
+): Promise<CheckResult> {
+  const url = baseUrl.replace(/\/$/, "") + "/v1/models";
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), timeoutMs);
+  const start = Date.now();
+  try {
+    const res = await tauriFetch(url, { method: "GET", signal: ctrl.signal });
+    return {
+      ok: res.ok,
+      url,
+      status: res.status,
+      statusText: res.statusText,
+      durationMs: Date.now() - start,
+    };
+  } catch (e) {
+    const aborted = ctrl.signal.aborted;
+    return {
+      ok: false,
+      url,
+      error: aborted
+        ? `Timeout nach ${timeoutMs} ms`
+        : e instanceof Error
+          ? `${e.name}: ${e.message}`
+          : String(e),
+      durationMs: Date.now() - start,
+    };
+  } finally {
+    clearTimeout(t);
+  }
 }
 
 /**
  * Quick health check — does the LM Studio server respond? Uses /v1/models with a
  * short timeout so we don't block the bulk pipeline when nothing's running.
  */
-export async function checkAvailable(baseUrl: string, timeoutMs = 1500): Promise<boolean> {
-  const url = baseUrl.replace(/\/$/, "") + "/v1/models";
-  const ctrl = new AbortController();
-  const t = setTimeout(() => ctrl.abort(), timeoutMs);
-  try {
-    const res = await tauriFetch(url, { method: "GET", signal: ctrl.signal });
-    return res.ok;
-  } catch {
-    return false;
-  } finally {
-    clearTimeout(t);
-  }
+export async function checkAvailable(baseUrl: string, timeoutMs = 5000): Promise<boolean> {
+  const r = await checkAvailableDetailed(baseUrl, timeoutMs);
+  return r.ok;
 }

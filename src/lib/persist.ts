@@ -1,5 +1,11 @@
 import { load, type Store } from "@tauri-apps/plugin-store";
-import type { Settings, UndoEntry } from "../types";
+import type { BulkEntry, LibraryCluster, LibraryEntry, LibrarySettings, Settings, UndoEntry } from "../types";
+
+export type BulkCache = {
+  folder: string | null;
+  recursive: boolean;
+  entries: BulkEntry[];
+};
 
 const FILE = "settings.json";
 let storePromise: Promise<Store> | null = null;
@@ -58,4 +64,38 @@ export async function saveUndo(undo: UndoEntry | null): Promise<void> {
   const s = await getStore();
   if (undo) await s.set("last_undo", undo);
   else await s.delete("last_undo");
+}
+
+export async function loadBulkCache(): Promise<BulkCache | null> {
+  const s = await getStore();
+  return (await s.get<BulkCache>("bulk_cache")) ?? null;
+}
+
+export async function saveBulkCache(cache: BulkCache | null): Promise<void> {
+  const s = await getStore();
+  if (cache) await s.set("bulk_cache", cache);
+  else await s.delete("bulk_cache");
+}
+
+// ---------------------------------------------------------------------------
+// Library cache
+// ---------------------------------------------------------------------------
+
+export type LibraryCache = {
+  folder: string | null;
+  recursive: boolean;
+  entries: LibraryEntry[];
+  clusters: LibraryCluster[];
+  settings: LibrarySettings;
+};
+
+export async function loadLibraryCache(): Promise<LibraryCache | null> {
+  const s = await getStore();
+  return (await s.get<LibraryCache>("library_cache")) ?? null;
+}
+
+export async function saveLibraryCache(cache: LibraryCache | null): Promise<void> {
+  const s = await getStore();
+  if (cache) await s.set("library_cache", cache);
+  else await s.delete("library_cache");
 }
