@@ -190,7 +190,24 @@ export function LibraryTable({ cluster, entries, onApply, onApplyAll, onAskLlm, 
           {/* Sticky column headers */}
           <div className="sticky top-0 z-10 bg-white dark:bg-slate-950 border-b border-slate-200 dark:border-slate-800">
             <div className="flex items-center">
-              <div className="w-8 flex-shrink-0 px-2 py-1.5" />
+              <div className="w-8 flex-shrink-0 px-2 py-1.5 text-center">
+                {withSuggestions.length > 0 && (
+                  <input
+                    type="checkbox"
+                    checked={withSuggestions.length > 0 && withSuggestions.every((e) => e.selected)}
+                    ref={(el) => {
+                      if (el) el.indeterminate = withSuggestions.some((e) => e.selected) && !withSuggestions.every((e) => e.selected);
+                    }}
+                    onChange={(ev) => {
+                      const checked = ev.target.checked;
+                      for (const e of withSuggestions) {
+                        if (e.selected !== checked) toggleSelected(e.id);
+                      }
+                    }}
+                    title="Alle auswählen / abwählen"
+                  />
+                )}
+              </div>
               <div className="relative px-2 py-1.5 font-medium text-xs uppercase tracking-wider text-slate-600 dark:text-slate-400 flex-shrink-0" style={{ width: widths.datei }}>
                 Datei
                 <ResizeHandle onDrag={onDragStart("datei")} />

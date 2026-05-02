@@ -150,9 +150,37 @@ export function LibraryTab() {
         e.suggestion &&
         e.status !== "done",
     );
+
+    // Safety: for move-duplicate actions, never move ALL copies of a volume.
+    // Track how many copies per volume exist and how many we've already moved,
+    // and skip if moving would leave zero copies.
+    const allClusterEntries = entries.filter((e) => e.clusterId === selectedCluster);
+    const volumeCounts = new Map<string, number>();
+    for (const e of allClusterEntries) {
+      if (e.volume === null || e.status === "done") continue;
+      const vk = `${e.volume}`;
+      volumeCounts.set(vk, (volumeCounts.get(vk) ?? 0) + 1);
+    }
+    const movedPerVolume = new Map<string, number>();
+
     let anySuccess = false;
     for (const entry of targets) {
       if (!entry.suggestion) continue;
+
+      if (entry.suggestion.action === "move-duplicate" && entry.volume !== null) {
+        const vk = `${entry.volume}`;
+        const total = volumeCounts.get(vk) ?? 1;
+        const moved = movedPerVolume.get(vk) ?? 0;
+        if (total - moved <= 1) {
+          updateEntry(entry.id, {
+            status: "error",
+            error: "Übersprungen — letzte Kopie dieses Bandes",
+          });
+          continue;
+        }
+        movedPerVolume.set(vk, moved + 1);
+      }
+
       updateEntry(entry.id, { status: "renaming" });
       const pair = { from: entry.originalPath, to: entry.suggestion.proposedPath };
       try {
@@ -264,7 +292,7 @@ export function LibraryTab() {
   const selectedClusterObj = clusters.find((c) => c.id === selectedCluster) ?? null;
 
   const issueCount = entries.reduce(
-    (n, e) => n + e.issues.filter((i) => i.kind !== "volume-gap").length,
+    (n, e) => n + e.issues.filter((i) => i.kind !== "volume-gap" && i.kind !== "range-or-omnibus").length,
     0,
   );
   const clusterCount = clusters.length;

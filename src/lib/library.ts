@@ -3,6 +3,7 @@ import type {
   LibraryCluster,
   LibraryEntry,
   LibrarySettings,
+  LibrarySuggestion,
 } from "../types";
 import { basename, dirname, extension, joinPath, sanitize, formatAuthor, padVolume } from "./naming";
 import { authorKey, seriesKey, buildClusters, toTitleCase } from "./cluster";
@@ -124,7 +125,7 @@ export function reanalyze(
     // update entry-level data back
     for (const e of clusterEntries) entryMap.set(e.id, e);
     cluster.issueCount = clusterEntries.reduce(
-      (n, e) => n + e.issues.filter((i) => i.kind !== "volume-gap").length,
+      (n, e) => n + e.issues.filter((i) => i.kind !== "volume-gap" && i.kind !== "range-or-omnibus").length,
       0,
     );
   }
@@ -345,45 +346,69 @@ function buildSuggestions(
     .map((e) => Math.max(e.volume ?? 0, e.volumeEnd ?? 0));
   const maxVol = volumes.length > 0 ? Math.max(...volumes) : 0;
 
+  // Build a volume→entries map so we can check whether a duplicate-volume
+  // entry is purely a format duplicate (EPUB preferred over other formats).
+  const volGroupMap = new Map<string, LibraryEntry[]>();
   for (const e of entries) {
-    // any duplicate → move to _duplicates/
-    const isDup = e.issues.some(
-      (i) => i.kind === "format-duplicate" || i.kind === "duplicate-volume",
-    );
+    if (e.volume === null) continue;
+    const vk = `${e.volume}`;
+    const list = volGroupMap.get(vk) ?? [];
+    list.push(e);
+    volGroupMap.set(vk, list);
+  }
 
-    if (isDup) {
+  for (const e of entries) {
+    const isFormatDup = e.issues.some((i) => i.kind === "format-duplicate");
+    const isDupVol = e.issues.some((i) => i.kind === "duplicate-volume");
+
+    // EPUB files that are only flagged as duplicate because a non-EPUB copy
+    // exists should NOT get a move suggestion — EPUB is the preferred format.
+    const isEpub = e.extension.toLowerCase() === ".epub";
+    if (isEpub && isDupVol && !isFormatDup) {
+      const vk = e.volume !== null ? `${e.volume}` : null;
+      const group = vk ? volGroupMap.get(vk) ?? [] : [];
+      const onlyFormatDups = group.length > 1 && group
+        .filter((o) => o.id !== e.id)
+        .every((o) => o.extension.toLowerCase() !== ".epub");
+      if (onlyFormatDups) continue;
+    }
+
+    const isDup = isFormatDup || isDupVol;
+
+    // Build the canonical filename first — rename takes priority over move.
+    let renameSuggestion: LibrarySuggestion | null = null;
+    if (e.author && e.series) {
+      const author = sanitize(formatAuthor(canonAuthor));
+      const series = sanitize(canonSeries);
+      let name = `${author} - ${series}`;
+      if (e.volume !== null) {
+        const start = padVolume(e.volume, maxVol);
+        const end =
+          e.volumeEnd !== null && e.volumeEnd > e.volume
+            ? `-${padVolume(e.volumeEnd, maxVol)}`
+            : "";
+        name += ` (${start}${end})`;
+      }
+      if (e.title) name += ` - ${sanitize(e.title)}`;
+      const proposedName = name + e.extension;
+      if (proposedName !== e.originalName) {
+        renameSuggestion = {
+          action: "rename",
+          proposedName,
+          proposedPath: joinPath(e.dir, proposedName),
+        };
+      }
+    }
+
+    if (renameSuggestion) {
+      e.suggestion = renameSuggestion;
+    } else if (isDup) {
       const root = findScanRoot(entries);
       const dupDir = joinPath(root, "_duplicates");
       e.suggestion = {
         action: "move-duplicate",
         proposedName: e.originalName,
         proposedPath: joinPath(dupDir, e.originalName),
-      };
-      continue;
-    }
-
-    // Build the canonical filename from current metadata and check if it
-    // differs from the original — regardless of whether a specific issue
-    // was detected (e.g. after manual author/series edits in the header).
-    if (!e.author || !e.series) continue;
-    const author = sanitize(formatAuthor(canonAuthor));
-    const series = sanitize(canonSeries);
-    let name = `${author} - ${series}`;
-    if (e.volume !== null) {
-      const start = padVolume(e.volume, maxVol);
-      const end =
-        e.volumeEnd !== null && e.volumeEnd > e.volume
-          ? `-${padVolume(e.volumeEnd, maxVol)}`
-          : "";
-      name += ` (${start}${end})`;
-    }
-    if (e.title) name += ` - ${sanitize(e.title)}`;
-    const proposedName = name + e.extension;
-    if (proposedName !== e.originalName) {
-      e.suggestion = {
-        action: "rename",
-        proposedName,
-        proposedPath: joinPath(e.dir, proposedName),
       };
     }
   }
