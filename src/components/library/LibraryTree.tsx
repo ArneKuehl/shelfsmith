@@ -65,10 +65,10 @@ export function LibraryTree({ clusters, selectedClusterId, onSelect, filter }: P
               )}
               {c.missingVolumes.length > 0 && (
                 <span
-                  className="ml-1 flex-shrink-0 text-rose-500 text-xs"
+                  className="ml-1 flex-shrink-0 inline-flex items-center justify-center w-5 h-5 rounded-full bg-blue-100 dark:bg-blue-900/60 text-blue-700 dark:text-blue-300 text-[10px] font-bold"
                   title={`Fehlend: ${c.missingVolumes.join(", ")}`}
                 >
-                  !
+                  ?
                 </span>
               )}
             </button>

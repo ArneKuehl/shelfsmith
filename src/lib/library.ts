@@ -114,15 +114,19 @@ export function reanalyze(
     entryMap.set(e.id, { ...e, clusterId: entryClusterMap.get(e.id) ?? "", issues: [], suggestion: null });
   }
 
-  // 3. Detect issues per cluster
+  // 3. Detect issues per cluster (skip "done" entries for detection)
   for (const cluster of clusters) {
     const clusterEntries = cluster.entryIds.map((id) => entryMap.get(id)!).filter(Boolean);
-    detectIssues(cluster, clusterEntries, libSettings);
-    buildSuggestions(cluster, clusterEntries, libSettings);
+    const activeEntries = clusterEntries.filter((e) => e.status !== "done");
+    detectIssues(cluster, activeEntries, libSettings);
+    buildSuggestions(cluster, activeEntries, libSettings);
 
     // update entry-level data back
     for (const e of clusterEntries) entryMap.set(e.id, e);
-    cluster.issueCount = clusterEntries.reduce((n, e) => n + e.issues.length, 0);
+    cluster.issueCount = clusterEntries.reduce(
+      (n, e) => n + e.issues.filter((i) => i.kind !== "volume-gap").length,
+      0,
+    );
   }
 
   return { entries: [...entryMap.values()], clusters };
@@ -200,6 +204,18 @@ function detectIssues(
     }
   }
 
+  // Build a set of all volumes covered by omnibus/range entries
+  const omnibusCoverage = new Set<number>();
+  const omnibusEntries: LibraryEntry[] = [];
+  for (const e of entries) {
+    if (e.volume !== null && e.volumeEnd !== null && e.volumeEnd > e.volume) {
+      omnibusEntries.push(e);
+      for (let v = Math.ceil(e.volume); v <= Math.floor(e.volumeEnd); v++) {
+        omnibusCoverage.add(v);
+      }
+    }
+  }
+
   // duplicate-volume — same volume across different entries
   const volumeMap = new Map<string, LibraryEntry[]>();
   for (const e of entries) {
@@ -211,7 +227,6 @@ function detectIssues(
   }
   for (const [, group] of volumeMap) {
     if (group.length <= 1) continue;
-    // Check if they differ by extension or alternative tag
     for (const e of group) {
       const isDup = e.issues.some((i) => i.kind === "duplicate-volume");
       if (!isDup) {
@@ -223,6 +238,22 @@ function detectIssues(
         });
       }
     }
+  }
+
+  // Einzelbände, die komplett durch einen Omnibus abgedeckt sind → Duplikat
+  for (const e of entries) {
+    if (e.volume === null || e.volumeEnd !== null) continue;
+    if (!omnibusCoverage.has(e.volume)) continue;
+    const isDup = e.issues.some((i) => i.kind === "duplicate-volume");
+    if (isDup) continue;
+    const covering = omnibusEntries
+      .filter((o) => e.volume! >= o.volume! && e.volume! <= o.volumeEnd!)
+      .map((o) => o.originalName)
+      .join(", ");
+    e.issues.push({
+      kind: "duplicate-volume",
+      message: `Band ${e.volume} ist in Omnibus enthalten: ${covering}`,
+    });
   }
 
   // format-duplicate — same volume, different format; EPUB wins
@@ -244,16 +275,19 @@ function detectIssues(
     }
   }
 
-  // volume-gap
-  const volumes = entries
-    .filter((e) => e.volume !== null && e.volumeEnd === null)
-    .map((e) => e.volume!)
-    .filter((v) => Number.isInteger(v) && v > 0);
-  if (volumes.length >= 2) {
-    const sorted = [...new Set(volumes)].sort((a, b) => a - b);
+  // volume-gap — omnibus ranges count as covered
+  const coveredVolumes = new Set<number>(omnibusCoverage);
+  for (const e of entries) {
+    if (e.volume !== null && e.volumeEnd === null && Number.isInteger(e.volume) && e.volume > 0) {
+      coveredVolumes.add(e.volume);
+    }
+  }
+  const allVolumes = [...coveredVolumes];
+  if (allVolumes.length >= 1) {
+    const maxVol = Math.max(...allVolumes);
     const missing: number[] = [];
-    for (let i = sorted[0]; i <= sorted[sorted.length - 1]; i++) {
-      if (!sorted.includes(i)) missing.push(i);
+    for (let i = 1; i <= maxVol; i++) {
+      if (!coveredVolumes.has(i)) missing.push(i);
     }
     cluster.missingVolumes = missing;
     if (missing.length > 0) {
@@ -263,15 +297,15 @@ function detectIssues(
             kind: "volume-gap",
             message: `Fehlende Bände: ${missing.join(", ")}`,
           });
-          break; // only add once (to first entry)
+          break;
         }
       }
     }
   }
 
   // unpadded-volume — inconsistent padding
-  if (volumes.length >= 2) {
-    const maxVol = Math.max(...volumes);
+  if (allVolumes.length >= 2) {
+    const maxVol = Math.max(...allVolumes);
     const expectedWidth = Math.max(2, String(Math.floor(maxVol)).length);
     for (const e of entries) {
       if (e.volume === null) continue;
@@ -312,15 +346,12 @@ function buildSuggestions(
   const maxVol = volumes.length > 0 ? Math.max(...volumes) : 0;
 
   for (const e of entries) {
-    if (e.issues.length === 0) continue;
-
-    // format-duplicate → move to _duplicates/
-    const isFormatDup = e.issues.some((i) => i.kind === "format-duplicate");
-    const isAltDup = e.issues.some(
-      (i) => i.kind === "duplicate-volume" && i.message.includes("Alternative"),
+    // any duplicate → move to _duplicates/
+    const isDup = e.issues.some(
+      (i) => i.kind === "format-duplicate" || i.kind === "duplicate-volume",
     );
 
-    if (isFormatDup || isAltDup) {
+    if (isDup) {
       const root = findScanRoot(entries);
       const dupDir = joinPath(root, "_duplicates");
       e.suggestion = {
@@ -331,36 +362,29 @@ function buildSuggestions(
       continue;
     }
 
-    // Issues that warrant a rename
-    const needsRename = e.issues.some(
-      (i) =>
-        i.kind === "author-variant" ||
-        i.kind === "series-variant" ||
-        i.kind === "title-case" ||
-        i.kind === "unpadded-volume",
-    );
-
-    if (needsRename) {
-      const author = sanitize(formatAuthor(canonAuthor));
-      const series = sanitize(canonSeries);
-      let name = `${author} - ${series}`;
-      if (e.volume !== null) {
-        const start = padVolume(e.volume, maxVol);
-        const end =
-          e.volumeEnd !== null && e.volumeEnd > e.volume
-            ? `-${padVolume(e.volumeEnd, maxVol)}`
-            : "";
-        name += ` (${start}${end})`;
-      }
-      if (e.title) name += ` - ${sanitize(e.title)}`;
-      const proposedName = name + e.extension;
-      if (proposedName !== e.originalName) {
-        e.suggestion = {
-          action: "rename",
-          proposedName,
-          proposedPath: joinPath(e.dir, proposedName),
-        };
-      }
+    // Build the canonical filename from current metadata and check if it
+    // differs from the original — regardless of whether a specific issue
+    // was detected (e.g. after manual author/series edits in the header).
+    if (!e.author || !e.series) continue;
+    const author = sanitize(formatAuthor(canonAuthor));
+    const series = sanitize(canonSeries);
+    let name = `${author} - ${series}`;
+    if (e.volume !== null) {
+      const start = padVolume(e.volume, maxVol);
+      const end =
+        e.volumeEnd !== null && e.volumeEnd > e.volume
+          ? `-${padVolume(e.volumeEnd, maxVol)}`
+          : "";
+      name += ` (${start}${end})`;
+    }
+    if (e.title) name += ` - ${sanitize(e.title)}`;
+    const proposedName = name + e.extension;
+    if (proposedName !== e.originalName) {
+      e.suggestion = {
+        action: "rename",
+        proposedName,
+        proposedPath: joinPath(e.dir, proposedName),
+      };
     }
   }
 }

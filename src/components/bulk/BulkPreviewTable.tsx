@@ -68,15 +68,6 @@ export function BulkPreviewTable({
   const lastSortedRef = useRef<BulkEntry[]>([]);
   const scrollerRef = useRef<HTMLDivElement | null>(null);
   const [showScrollTop, setShowScrollTop] = useState(false);
-  const [widths, setWidths] = useState<ColWidths>(loadWidths);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem(WIDTHS_KEY, JSON.stringify(widths));
-    } catch {
-      /* ignore quota / privacy mode */
-    }
-  }, [widths]);
 
   const sorted = useMemo(() => {
     if (editingId) {
@@ -117,32 +108,26 @@ export function BulkPreviewTable({
 
   return (
     <div className="relative flex-1 min-h-0">
-      <div ref={scrollerRef} className="absolute inset-0 overflow-auto">
-        <div className="min-w-max px-4 py-3">
-          <ColumnHeaders widths={widths} setWidths={setWidths} />
-          <div className="space-y-2 pt-2">
-            {sorted.map((e) => {
-              const key = seriesSortKey(e.series);
-              const showHeader = sortBy === "series" && key !== lastSeriesKey;
-              if (showHeader) lastSeriesKey = key;
-              return (
-                <div key={e.id}>
-                  {showHeader && <SeriesGroupHeader label={e.series || "(ohne Serie)"} />}
-                  <Row
-                    entry={e}
-                    widths={widths}
-                    onChange={(patch) => update(e.id, patch, true)}
-                    onRemove={() => remove(e.id)}
-                    onRename={() => onRename(e)}
-                    onQueryLlm={() => handleLlmQuery(e)}
-                    onEditStart={() => setEditingId(e.id)}
-                    onEditEnd={() => setEditingId((cur) => (cur === e.id ? null : cur))}
-                  />
-                </div>
-              );
-            })}
-          </div>
-        </div>
+      <div ref={scrollerRef} className="absolute inset-0 overflow-auto px-4 py-3 space-y-2">
+        {sorted.map((e) => {
+          const key = seriesSortKey(e.series);
+          const showHeader = sortBy === "series" && key !== lastSeriesKey;
+          if (showHeader) lastSeriesKey = key;
+          return (
+            <div key={e.id}>
+              {showHeader && <SeriesGroupHeader label={e.series || "(ohne Serie)"} />}
+              <Row
+                entry={e}
+                onChange={(patch) => update(e.id, patch, true)}
+                onRemove={() => remove(e.id)}
+                onRename={() => onRename(e)}
+                onQueryLlm={() => handleLlmQuery(e)}
+                onEditStart={() => setEditingId(e.id)}
+                onEditEnd={() => setEditingId((cur) => (cur === e.id ? null : cur))}
+              />
+            </div>
+          );
+        })}
         <style>{css}</style>
       </div>
       {showScrollTop && (
@@ -243,7 +228,6 @@ function LlmInfoPopup({ prompt, raw, onClose }: { prompt: string; raw: string; o
 
 function Row({
   entry: e,
-  widths,
   onChange,
   onRemove,
   onRename,
@@ -252,7 +236,6 @@ function Row({
   onEditEnd,
 }: {
   entry: BulkEntry;
-  widths: ColWidths;
   onChange: (patch: Partial<BulkEntry>) => void;
   onRemove: () => void;
   onRename: () => void;
