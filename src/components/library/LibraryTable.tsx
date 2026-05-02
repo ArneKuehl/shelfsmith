@@ -1,3 +1,5 @@
+import { useEffect, useRef, useState } from "react";
+import { openPath } from "@tauri-apps/plugin-opener";
 import { useStore } from "../../lib/store";
 import type { LibraryCluster, LibraryEntry, LibraryIssueKind } from "../../types";
 
@@ -7,6 +9,9 @@ type Props = {
   onApply: (entry: LibraryEntry) => void;
   onApplyAll: () => void;
   onAskLlm: (entry: LibraryEntry) => void;
+  onUpdateCluster: (patch: { author?: string; series?: string }) => void;
+  onDelete: (entry: LibraryEntry) => void;
+  onManualRename: (entry: LibraryEntry, newName: string) => void;
   busy: boolean;
 };
 
@@ -36,8 +41,88 @@ const ISSUE_LABELS: Record<LibraryIssueKind, string> = {
   "title-case": "Casing",
 };
 
-export function LibraryTable({ cluster, entries, onApply, onApplyAll, onAskLlm, busy }: Props) {
+// ---------------------------------------------------------------------------
+// Resizable column widths
+// ---------------------------------------------------------------------------
+
+type ColKey = "datei" | "issues" | "vorschlag" | "actions";
+type ColWidths = Record<ColKey, number>;
+
+const WIDTHS_KEY = "lib_col_widths_v1";
+const DEFAULT_WIDTHS: ColWidths = { datei: 560, issues: 140, vorschlag: 360, actions: 200 };
+const MIN_WIDTH = 60;
+
+function loadWidths(): ColWidths {
+  try {
+    const raw = localStorage.getItem(WIDTHS_KEY);
+    if (!raw) return DEFAULT_WIDTHS;
+    return { ...DEFAULT_WIDTHS, ...JSON.parse(raw) };
+  } catch {
+    return DEFAULT_WIDTHS;
+  }
+}
+
+function ResizeHandle({
+  onDrag,
+}: {
+  onDrag: (delta: number) => void;
+}) {
+  const startX = useRef(0);
+  function onMouseDown(ev: React.MouseEvent) {
+    ev.preventDefault();
+    startX.current = ev.clientX;
+    const onMove = (e: MouseEvent) => onDrag(e.clientX - startX.current);
+    const onUp = () => {
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+    };
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+  }
+  return (
+    <div
+      onMouseDown={onMouseDown}
+      className="absolute -right-1.5 top-0 bottom-0 w-3 cursor-col-resize z-10 hover:bg-blue-500/30 active:bg-blue-500/50"
+    />
+  );
+}
+
+export function LibraryTable({ cluster, entries, onApply, onApplyAll, onAskLlm, onUpdateCluster, onDelete, onManualRename, busy }: Props) {
   const toggleSelected = useStore((s) => s.toggleLibrarySelected);
+  const [widths, setWidths] = useState<ColWidths>(loadWidths);
+  const baseWidths = useRef<ColWidths>(widths);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editingName, setEditingName] = useState("");
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(WIDTHS_KEY, JSON.stringify(widths));
+    } catch {
+      /* ignore */
+    }
+  }, [widths]);
+
+  function makeDragger(key: ColKey) {
+    return (delta: number) => {
+      setWidths((w) => {
+        if (delta === 0 && baseWidths.current !== w) {
+          baseWidths.current = w;
+          return w;
+        }
+        return { ...w, [key]: Math.max(MIN_WIDTH, baseWidths.current[key] + delta) };
+      });
+    };
+  }
+
+  function onDragStart(key: ColKey) {
+    baseWidths.current = widths;
+    return makeDragger(key);
+  }
 
   if (!cluster) {
     return (
@@ -63,11 +148,21 @@ export function LibraryTable({ cluster, entries, onApply, onApplyAll, onAskLlm, 
     <div className="flex flex-col flex-1 overflow-hidden">
       {/* Cluster header */}
       <div className="px-4 py-2 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 flex items-center gap-3">
-        <div className="flex-1 min-w-0">
-          <span className="font-semibold text-sm">{cluster.canonicalAuthor}</span>
-          <span className="mx-2 text-slate-400">—</span>
-          <span className="text-sm">{cluster.canonicalSeries || "(Ohne Serie)"}</span>
-          <span className="ml-2 text-xs text-slate-400">
+        <div className="flex-1 min-w-0 flex items-center gap-1">
+          <EditableLabel
+            value={cluster.canonicalAuthor}
+            placeholder="Autor"
+            className="font-semibold text-sm"
+            onCommit={(v) => onUpdateCluster({ author: v })}
+          />
+          <span className="mx-1 text-slate-400">—</span>
+          <EditableLabel
+            value={cluster.canonicalSeries || ""}
+            placeholder="Serie"
+            className="text-sm"
+            onCommit={(v) => onUpdateCluster({ series: v })}
+          />
+          <span className="ml-2 text-xs text-slate-400 flex-shrink-0">
             {clusterEntries.length} Datei(en)
           </span>
         </div>
@@ -90,28 +185,34 @@ export function LibraryTable({ cluster, entries, onApply, onApplyAll, onAskLlm, 
       </div>
 
       {/* Entries table */}
-      <div className="flex-1 overflow-y-auto">
-        <table className="w-full text-sm">
-          <thead className="sticky top-0 bg-white dark:bg-slate-950 border-b border-slate-200 dark:border-slate-800">
-            <tr>
-              <th className="w-8 px-2 py-1.5" />
-              <th className="text-left px-2 py-1.5 font-medium text-slate-600 dark:text-slate-400">
+      <div className="flex-1 overflow-auto">
+        <div className="min-w-max">
+          {/* Sticky column headers */}
+          <div className="sticky top-0 z-10 bg-white dark:bg-slate-950 border-b border-slate-200 dark:border-slate-800">
+            <div className="flex items-center">
+              <div className="w-8 flex-shrink-0 px-2 py-1.5" />
+              <div className="relative px-2 py-1.5 font-medium text-xs uppercase tracking-wider text-slate-600 dark:text-slate-400 flex-shrink-0" style={{ width: widths.datei }}>
                 Datei
-              </th>
-              <th className="text-left px-2 py-1.5 font-medium text-slate-600 dark:text-slate-400">
+                <ResizeHandle onDrag={onDragStart("datei")} />
+              </div>
+              <div className="relative px-2 py-1.5 font-medium text-xs uppercase tracking-wider text-slate-600 dark:text-slate-400 flex-shrink-0" style={{ width: widths.issues }}>
                 Issues
-              </th>
-              <th className="text-left px-2 py-1.5 font-medium text-slate-600 dark:text-slate-400">
+                <ResizeHandle onDrag={onDragStart("issues")} />
+              </div>
+              <div className="relative px-2 py-1.5 font-medium text-xs uppercase tracking-wider text-slate-600 dark:text-slate-400 flex-shrink-0" style={{ width: widths.vorschlag }}>
                 Vorschlag
-              </th>
-              <th className="w-20 px-2 py-1.5" />
-            </tr>
-          </thead>
-          <tbody>
-            {clusterEntries.map((e) => (
-              <tr
+                <ResizeHandle onDrag={onDragStart("vorschlag")} />
+              </div>
+              <div className="px-2 py-1.5 font-medium text-xs uppercase tracking-wider text-slate-600 dark:text-slate-400 flex-shrink-0" style={{ width: widths.actions }} />
+            </div>
+          </div>
+
+          {/* Rows */}
+          {clusterEntries.map((e) => {
+            return (
+              <div
                 key={e.id}
-                className={`border-b border-slate-100 dark:border-slate-800/50 ${
+                className={`flex items-center border-b border-slate-100 dark:border-slate-800/50 ${
                   e.status === "done"
                     ? "opacity-50"
                     : e.status === "error"
@@ -119,7 +220,8 @@ export function LibraryTable({ cluster, entries, onApply, onApplyAll, onAskLlm, 
                       : ""
                 }`}
               >
-                <td className="px-2 py-1.5 text-center">
+                {/* Checkbox */}
+                <div className="w-8 flex-shrink-0 px-2 py-1.5 text-center">
                   {e.suggestion && e.status !== "done" && (
                     <input
                       type="checkbox"
@@ -127,13 +229,69 @@ export function LibraryTable({ cluster, entries, onApply, onApplyAll, onAskLlm, 
                       onChange={() => toggleSelected(e.id)}
                     />
                   )}
-                </td>
-                <td className="px-2 py-1.5">
-                  <div className="truncate max-w-sm" title={e.originalPath}>
-                    {e.originalName}
-                  </div>
-                </td>
-                <td className="px-2 py-1.5">
+                </div>
+
+                {/* Datei */}
+                <div
+                  className="px-2 py-1.5 flex-shrink-0 overflow-hidden"
+                  style={{ width: widths.datei }}
+                >
+                  {editingId === e.id ? (
+                    <div className="flex items-center gap-1">
+                      <input
+                        autoFocus
+                        value={editingName}
+                        onChange={(ev) => setEditingName(ev.target.value)}
+                        onKeyDown={(ev) => {
+                          if (ev.key === "Enter") {
+                            const name = editingName;
+                            setEditingId(null);
+                            onManualRename(e, name);
+                          } else if (ev.key === "Escape") {
+                            setEditingId(null);
+                          }
+                        }}
+                        className="flex-1 text-sm bg-white dark:bg-slate-950 border border-blue-400 dark:border-blue-600 rounded px-1.5 py-0.5 outline-none"
+                      />
+                      <button
+                        onClick={() => {
+                          const name = editingName;
+                          setEditingId(null);
+                          onManualRename(e, name);
+                        }}
+                        disabled={busy}
+                        className="px-2 py-0.5 rounded bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-300 dark:disabled:bg-slate-700 text-white text-xs"
+                      >
+                        OK
+                      </button>
+                      <button
+                        onClick={() => setEditingId(null)}
+                        className="px-2 py-0.5 rounded bg-slate-300 dark:bg-slate-700 hover:bg-slate-400 dark:hover:bg-slate-600 text-xs"
+                      >
+                        Abbr.
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      className="text-sm text-left truncate block w-full hover:underline cursor-pointer"
+                      title={e.originalPath}
+                      onClick={() =>
+                        openPath(e.originalPath).catch((err) =>
+                          console.error("openPath failed", err),
+                        )
+                      }
+                    >
+                      {e.originalName}
+                    </button>
+                  )}
+                </div>
+
+                {/* Issues */}
+                <div
+                  className="px-2 py-1.5 flex-shrink-0 overflow-hidden"
+                  style={{ width: widths.issues }}
+                >
                   <div className="flex flex-wrap gap-1">
                     {e.issues.map((issue, i) => (
                       <span
@@ -145,10 +303,15 @@ export function LibraryTable({ cluster, entries, onApply, onApplyAll, onAskLlm, 
                       </span>
                     ))}
                   </div>
-                </td>
-                <td className="px-2 py-1.5">
+                </div>
+
+                {/* Vorschlag */}
+                <div
+                  className="px-2 py-1.5 flex-shrink-0 overflow-hidden"
+                  style={{ width: widths.vorschlag }}
+                >
                   {e.suggestion && (
-                    <div className="truncate max-w-sm text-xs" title={e.suggestion.proposedPath}>
+                    <div className="truncate text-xs" title={e.suggestion.proposedPath}>
                       <span
                         className={`inline-block mr-1.5 px-1 py-0.5 rounded text-[10px] font-medium ${
                           e.suggestion.action === "rename"
@@ -169,8 +332,13 @@ export function LibraryTable({ cluster, entries, onApply, onApplyAll, onAskLlm, 
                       Fehler
                     </span>
                   )}
-                </td>
-                <td className="px-2 py-1.5 text-right flex gap-1 justify-end">
+                </div>
+
+                {/* Actions */}
+                <div
+                  className="px-2 py-1.5 flex-shrink-0 flex gap-1 justify-end"
+                  style={{ width: widths.actions }}
+                >
                   {e.issues.some((i) => i.kind === "unparsable") && e.status !== "done" && (
                     <button
                       onClick={() => onAskLlm(e)}
@@ -190,12 +358,116 @@ export function LibraryTable({ cluster, entries, onApply, onApplyAll, onAskLlm, 
                       {e.suggestion.action === "rename" ? "Rename" : "Move"}
                     </button>
                   )}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+                  {e.status !== "done" && editingId !== e.id && (
+                    <button
+                      onClick={() => {
+                        setEditingId(e.id);
+                        setEditingName(e.suggestion?.proposedName ?? e.originalName);
+                      }}
+                      disabled={busy}
+                      className="px-2 py-1 rounded bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 disabled:opacity-50 text-slate-700 dark:text-slate-200 text-xs"
+                      title="Manuell umbenennen"
+                    >
+                      ✎
+                    </button>
+                  )}
+                  {e.status !== "done" && (
+                    confirmDeleteId === e.id ? (
+                      <>
+                        <button
+                          onClick={() => {
+                            setConfirmDeleteId(null);
+                            onDelete(e);
+                          }}
+                          disabled={busy}
+                          className="px-2 py-1 rounded bg-rose-600 hover:bg-rose-700 disabled:bg-slate-300 dark:disabled:bg-slate-700 text-white text-xs"
+                          title="Wirklich in den Papierkorb"
+                        >
+                          Sicher?
+                        </button>
+                        <button
+                          onClick={() => setConfirmDeleteId(null)}
+                          className="px-2 py-1 rounded bg-slate-300 dark:bg-slate-700 hover:bg-slate-400 dark:hover:bg-slate-600 text-xs"
+                        >
+                          ✕
+                        </button>
+                      </>
+                    ) : (
+                      <button
+                        onClick={() => setConfirmDeleteId(e.id)}
+                        disabled={busy}
+                        className="px-2 py-1 rounded bg-rose-100 hover:bg-rose-200 dark:bg-rose-900/40 dark:hover:bg-rose-900/70 disabled:opacity-50 text-rose-700 dark:text-rose-300 text-xs"
+                        title="In den Papierkorb verschieben"
+                      >
+                        🗑
+                      </button>
+                    )
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
       </div>
     </div>
+  );
+}
+
+function EditableLabel({
+  value,
+  placeholder,
+  className,
+  onCommit,
+}: {
+  value: string;
+  placeholder: string;
+  className?: string;
+  onCommit: (v: string) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(value);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    setDraft(value);
+  }, [value]);
+
+  useEffect(() => {
+    if (editing) inputRef.current?.select();
+  }, [editing]);
+
+  if (!editing) {
+    return (
+      <button
+        type="button"
+        className={`${className ?? ""} hover:bg-slate-200 dark:hover:bg-slate-700 rounded px-1.5 py-0.5 -mx-1.5 cursor-text truncate`}
+        title="Klicken zum Bearbeiten"
+        onClick={() => setEditing(true)}
+      >
+        {value || <span className="text-slate-400 italic">{placeholder}</span>}
+      </button>
+    );
+  }
+
+  const commit = () => {
+    setEditing(false);
+    const trimmed = draft.trim();
+    if (trimmed && trimmed !== value) onCommit(trimmed);
+    else setDraft(value);
+  };
+
+  return (
+    <input
+      ref={inputRef}
+      className={`${className ?? ""} bg-white dark:bg-slate-950 border border-blue-400 dark:border-blue-600 rounded px-1.5 py-0.5 outline-none min-w-[8rem]`}
+      value={draft}
+      placeholder={placeholder}
+      onChange={(e) => setDraft(e.target.value)}
+      onBlur={commit}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") commit();
+        if (e.key === "Escape") { setDraft(value); setEditing(false); }
+      }}
+    />
   );
 }

@@ -7,7 +7,11 @@ import { loadLibraryCache, saveLibraryCache } from "../../lib/persist";
 import { decomposeFilename } from "../../lib/lmstudio";
 import { LibraryTree } from "./LibraryTree";
 import { LibraryTable } from "./LibraryTable";
+import { LibraryMissingTable } from "./LibraryMissingTable";
+import { dirname, joinPath } from "../../lib/naming";
 import type { LibraryEntry, RenameResult } from "../../types";
+
+type DeleteResult = { path: string; ok: boolean; error?: string };
 
 export function LibraryTab() {
   const settings = useStore((s) => s.settings);
@@ -30,6 +34,7 @@ export function LibraryTab() {
   const [filter, setFilter] = useState("");
   const [busy, setBusy] = useState(false);
   const [cacheLoaded, setCacheLoaded] = useState(false);
+  const [view, setView] = useState<"detail" | "missing">("detail");
 
   const abortRef = useRef<AbortController | null>(null);
 
@@ -80,9 +85,34 @@ export function LibraryTab() {
   };
 
   const runReanalyze = () => {
-    const result = reanalyze(entries, libSettings);
+    const s = useStore.getState();
+    const result = reanalyze(s.libraryEntries, s.librarySettings);
     setEntries(result.entries);
     setClusters(result.clusters);
+  };
+
+  // Real disk rescan + reanalyze; tries to preserve the currently selected
+  // cluster by matching (authorKey, seriesKey).
+  const rescanPreservingCluster = async () => {
+    if (!folder) return;
+    const prevId = useStore.getState().librarySelectedCluster;
+    const prev = useStore.getState().libraryClusters.find((c) => c.id === prevId);
+    setScanning(true);
+    try {
+      const result = await analyzeLibrary(folder, recursive, libSettings);
+      setEntries(result.entries);
+      setClusters(result.clusters);
+      if (prev) {
+        const match = result.clusters.find(
+          (c) => c.authorKey === prev.authorKey && c.seriesKey === prev.seriesKey,
+        );
+        setSelectedCluster(match ? match.id : null);
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setScanning(false);
+    }
   };
 
   const applySingle = async (entry: LibraryEntry) => {
@@ -95,7 +125,7 @@ export function LibraryTab() {
       const results = await invoke<RenameResult[]>("rename_files", { pairs: [pair] });
       const r = results[0];
       if (r.ok) {
-        updateEntry(entry.id, { status: "done" });
+        await rescanPreservingCluster();
       } else {
         updateEntry(entry.id, { status: "error", error: r.error });
       }
@@ -120,6 +150,7 @@ export function LibraryTab() {
         e.suggestion &&
         e.status !== "done",
     );
+    let anySuccess = false;
     for (const entry of targets) {
       if (!entry.suggestion) continue;
       updateEntry(entry.id, { status: "renaming" });
@@ -128,7 +159,7 @@ export function LibraryTab() {
         const results = await invoke<RenameResult[]>("rename_files", { pairs: [pair] });
         const r = results[0];
         if (r.ok) {
-          updateEntry(entry.id, { status: "done" });
+          anySuccess = true;
         } else {
           updateEntry(entry.id, { status: "error", error: r.error });
         }
@@ -139,7 +170,58 @@ export function LibraryTab() {
         });
       }
     }
+    if (anySuccess) await rescanPreservingCluster();
     setBusy(false);
+  };
+
+  const deleteEntry = async (entry: LibraryEntry) => {
+    setBusy(true);
+    setError(null);
+    try {
+      const results = await invoke<DeleteResult[]>("delete_files", {
+        paths: [entry.originalPath],
+      });
+      const r = results[0];
+      if (r.ok) {
+        await rescanPreservingCluster();
+      } else {
+        updateEntry(entry.id, { status: "error", error: r.error ?? "Löschen fehlgeschlagen" });
+      }
+    } catch (e) {
+      updateEntry(entry.id, {
+        status: "error",
+        error: e instanceof Error ? e.message : String(e),
+      });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const manualRename = async (entry: LibraryEntry, newName: string) => {
+    const trimmed = newName.trim();
+    if (!trimmed || trimmed === entry.originalName) return;
+    setBusy(true);
+    setError(null);
+    updateEntry(entry.id, { status: "renaming" });
+    const targetPath = joinPath(dirname(entry.originalPath), trimmed);
+    try {
+      const results = await invoke<RenameResult[]>("rename_files", {
+        pairs: [{ from: entry.originalPath, to: targetPath }],
+      });
+      const r = results[0];
+      if (r.ok) {
+        await rescanPreservingCluster();
+      } else {
+        updateEntry(entry.id, { status: "error", error: r.error });
+      }
+    } catch (e) {
+      updateEntry(entry.id, {
+        status: "error",
+        error: e instanceof Error ? e.message : String(e),
+      });
+    } finally {
+      setBusy(false);
+    }
   };
 
   const askLlm = async (entry: LibraryEntry) => {
@@ -165,9 +247,26 @@ export function LibraryTab() {
     }
   };
 
+  const updateCluster = (patch: { author?: string; series?: string }) => {
+    if (!selectedCluster) return;
+    const clusterEntryIds = new Set(
+      entries.filter((e) => e.clusterId === selectedCluster).map((e) => e.id),
+    );
+    for (const id of clusterEntryIds) {
+      const ep: Partial<LibraryEntry> = {};
+      if (patch.author !== undefined) ep.author = patch.author;
+      if (patch.series !== undefined) ep.series = patch.series;
+      updateEntry(id, ep);
+    }
+    setTimeout(runReanalyze, 0);
+  };
+
   const selectedClusterObj = clusters.find((c) => c.id === selectedCluster) ?? null;
 
-  const issueCount = entries.reduce((n, e) => n + e.issues.length, 0);
+  const issueCount = entries.reduce(
+    (n, e) => n + e.issues.filter((i) => i.kind !== "volume-gap").length,
+    0,
+  );
   const clusterCount = clusters.length;
 
   return (
@@ -233,37 +332,77 @@ export function LibraryTab() {
             {entries.length} Dateien, {clusterCount} Cluster, {issueCount} Issues
           </span>
         )}
+        {entries.length > 0 && (
+          <div className="pb-1 self-end inline-flex rounded-md border border-slate-300 dark:border-slate-700 overflow-hidden text-xs">
+            <button
+              className={`px-3 py-1.5 ${
+                view === "detail"
+                  ? "bg-blue-600 text-white"
+                  : "bg-white dark:bg-slate-950 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
+              }`}
+              onClick={() => setView("detail")}
+            >
+              Detail
+            </button>
+            <button
+              className={`px-3 py-1.5 border-l border-slate-300 dark:border-slate-700 ${
+                view === "missing"
+                  ? "bg-blue-600 text-white"
+                  : "bg-white dark:bg-slate-950 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
+              }`}
+              onClick={() => setView("missing")}
+            >
+              Lücken
+            </button>
+          </div>
+        )}
       </div>
 
-      {/* Main area: tree + table */}
+      {/* Main area: tree + table OR missing-volumes table */}
       <div className="flex flex-1 overflow-hidden">
-        {/* Left: cluster tree */}
-        <div className="w-72 flex-shrink-0 border-r border-slate-200 dark:border-slate-800 overflow-hidden flex flex-col">
-          <div className="px-3 py-2 border-b border-slate-200 dark:border-slate-800">
-            <input
-              type="text"
-              placeholder="Filter…"
-              value={filter}
-              onChange={(e) => setFilter(e.target.value)}
-              className="w-full text-xs bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded px-2 py-1.5"
+        {view === "detail" ? (
+          <>
+            {/* Left: cluster tree */}
+            <div className="w-72 flex-shrink-0 border-r border-slate-200 dark:border-slate-800 overflow-hidden flex flex-col">
+              <div className="px-3 py-2 border-b border-slate-200 dark:border-slate-800">
+                <input
+                  type="text"
+                  placeholder="Filter…"
+                  value={filter}
+                  onChange={(e) => setFilter(e.target.value)}
+                  className="w-full text-xs bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded px-2 py-1.5"
+                />
+              </div>
+              <LibraryTree
+                clusters={clusters}
+                selectedClusterId={selectedCluster}
+                onSelect={setSelectedCluster}
+                filter={filter}
+              />
+            </div>
+            {/* Right: detail table */}
+            <LibraryTable
+              cluster={selectedClusterObj}
+              entries={entries}
+              onApply={applySingle}
+              onApplyAll={applyAllInCluster}
+              onAskLlm={askLlm}
+              onUpdateCluster={updateCluster}
+              onDelete={deleteEntry}
+              onManualRename={manualRename}
+              busy={busy}
             />
-          </div>
-          <LibraryTree
+          </>
+        ) : (
+          <LibraryMissingTable
             clusters={clusters}
-            selectedClusterId={selectedCluster}
-            onSelect={setSelectedCluster}
-            filter={filter}
+            entries={entries}
+            onSelectCluster={(id) => {
+              setSelectedCluster(id);
+              setView("detail");
+            }}
           />
-        </div>
-        {/* Right: detail table */}
-        <LibraryTable
-          cluster={selectedClusterObj}
-          entries={entries}
-          onApply={applySingle}
-          onApplyAll={applyAllInCluster}
-          onAskLlm={askLlm}
-          busy={busy}
-        />
+        )}
       </div>
 
       {error && (
