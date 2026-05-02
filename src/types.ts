@@ -123,6 +123,7 @@ export type LibraryIssueKind =
   | "series-variant"
   | "duplicate-volume"
   | "format-duplicate"
+  | "format-preference"
   | "volume-gap"
   | "range-or-omnibus"
   | "unpadded-volume"

@@ -198,6 +198,14 @@ function detectIssues(
       });
     }
 
+    // non-epub — not the preferred format
+    if (e.extension.toLowerCase() !== ".epub") {
+      e.issues.push({
+        kind: "format-preference",
+        message: `Format ${e.extension} — EPUB ist bevorzugt`,
+      });
+    }
+
     // duplicate-volume — (alternative) tag in original name
     if (ALTERNATIVE_TAG.test(e.originalName)) {
       ALTERNATIVE_TAG.lastIndex = 0;
