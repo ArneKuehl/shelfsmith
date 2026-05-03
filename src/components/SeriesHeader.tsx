@@ -11,11 +11,11 @@ export function SeriesHeader() {
     <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50 flex flex-wrap gap-3">
       <div className="flex-1 min-w-[240px]">
         <label className="block text-xs uppercase tracking-wider text-slate-600 dark:text-slate-400 mb-1">
-          Autor (Nachname Vorname)
+          Autor (Nachname, Vorname)
         </label>
         <input
           className="hdr-input"
-          placeholder="z.B. Sanderson Brandon"
+          placeholder="z.B. Sanderson, Brandon"
           value={meta.author}
           onChange={(e) => setMeta({ author: e.target.value })}
         />

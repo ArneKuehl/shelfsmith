@@ -194,7 +194,7 @@ export const useStore = create<State>((set, get) => ({
   },
   applyLLM: (data) => {
     set((st) => ({
-      meta: { author: data.author || st.meta.author, series: data.series || st.meta.series },
+      meta: { author: formatAuthor(data.author) || st.meta.author, series: data.series || st.meta.series },
       entries: st.entries.map((e) => {
         const m = data.files.find((f) => f.originalName === e.originalName);
         if (!m) return e;
