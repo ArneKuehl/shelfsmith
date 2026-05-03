@@ -129,7 +129,8 @@ export type LibraryIssueKind =
   | "unpadded-volume"
   | "unparsable"
   | "orphan"
-  | "title-case";
+  | "title-case"
+  | "metadata-mismatch";
 
 export type LibraryIssue = {
   kind: LibraryIssueKind;
@@ -150,6 +151,7 @@ export type LibraryEntry = {
   originalName: string;
   dir: string;
   extension: string;
+  epubMeta?: EpubMeta | null;
   author: string;
   series: string;
   volume: number | null;

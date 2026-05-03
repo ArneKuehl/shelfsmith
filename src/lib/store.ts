@@ -82,6 +82,7 @@ type State = {
   toggleLibrarySelected: (id: string) => void;
   setAllLibrarySelected: (selected: boolean) => void;
   updateLibraryEntry: (id: string, patch: Partial<LibraryEntry>) => void;
+  updateLibraryEntries: (patches: Map<string, Partial<LibraryEntry>>) => void;
   updateLibraryCluster: (id: string, patch: Partial<LibraryCluster>) => void;
   clearLibrary: () => void;
 
@@ -240,6 +241,13 @@ export const useStore = create<State>((set, get) => ({
   updateLibraryEntry: (id, patch) =>
     set((st) => ({
       libraryEntries: st.libraryEntries.map((e) => (e.id === id ? { ...e, ...patch } : e)),
+    })),
+  updateLibraryEntries: (patches) =>
+    set((st) => ({
+      libraryEntries: st.libraryEntries.map((e) => {
+        const p = patches.get(e.id);
+        return p ? { ...e, ...p } : e;
+      }),
     })),
   updateLibraryCluster: (id, patch) =>
     set((st) => ({

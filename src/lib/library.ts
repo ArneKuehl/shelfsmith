@@ -1,5 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import type {
+  EpubMeta,
   LibraryCluster,
   LibraryEntry,
   LibrarySettings,
@@ -85,6 +86,52 @@ function createEntry(path: string): LibraryEntry {
 // Full pipeline
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// EPUB metadata loading (lazy, batch)
+// ---------------------------------------------------------------------------
+
+/**
+ * Reads EPUB OPF metadata for every entry whose `epubMeta` is still undefined.
+ * Returns a Map id → EpubMeta | null (null = read failed).
+ *
+ * Call this once after a fresh scan (or after loading from cache when no meta
+ * was persisted yet) — NOT on every reanalyze.
+ */
+export async function loadEpubMetaForEntries(
+  entries: LibraryEntry[],
+  onProgress?: (done: number, total: number) => void,
+): Promise<Map<string, EpubMeta | null>> {
+  const targets = entries.filter(
+    (e) => e.extension.toLowerCase() === ".epub" && e.epubMeta === undefined,
+  );
+  const result = new Map<string, EpubMeta | null>();
+  const total = targets.length;
+  let done = 0;
+  const concurrency = 4;
+  let cursor = 0;
+
+  async function worker() {
+    while (true) {
+      const i = cursor++;
+      if (i >= targets.length) return;
+      const entry = targets[i];
+      try {
+        const meta = await invoke<EpubMeta>("read_epub_metadata", {
+          path: entry.originalPath,
+        });
+        result.set(entry.id, meta);
+      } catch {
+        result.set(entry.id, null);
+      }
+      done += 1;
+      onProgress?.(done, total);
+    }
+  }
+
+  await Promise.all(Array.from({ length: Math.min(concurrency, total) }, worker));
+  return result;
+}
+
 export async function analyzeLibrary(
   folder: string,
   recursive: boolean,
@@ -125,7 +172,14 @@ export function reanalyze(
     // update entry-level data back
     for (const e of clusterEntries) entryMap.set(e.id, e);
     cluster.issueCount = clusterEntries.reduce(
-      (n, e) => n + e.issues.filter((i) => i.kind !== "volume-gap" && i.kind !== "range-or-omnibus").length,
+      (n, e) =>
+        n +
+        e.issues.filter(
+          (i) =>
+            i.kind !== "volume-gap" &&
+            i.kind !== "range-or-omnibus" &&
+            i.kind !== "metadata-mismatch",
+        ).length,
       0,
     );
   }
@@ -210,6 +264,41 @@ function detectIssues(
     if (ALTERNATIVE_TAG.test(e.originalName)) {
       ALTERNATIVE_TAG.lastIndex = 0;
       e.issues.push({ kind: "duplicate-volume", message: "Alternative-Datei" });
+    }
+
+    // metadata-mismatch — EPUB-OPF differs from cleaned filename data.
+    // Informational only: not counted toward cluster issueCount.
+    if (e.extension.toLowerCase() === ".epub" && e.epubMeta) {
+      const expectedAuthor = libSettings.titleCase
+        ? toTitleCase(canonicalAuthor)
+        : canonicalAuthor;
+      const expectedSeries = libSettings.titleCase
+        ? toTitleCase(canonicalSeries)
+        : canonicalSeries;
+      const diffs: string[] = [];
+      const norm = (s: string | null | undefined) => (s ?? "").trim().toLowerCase();
+      if (e.title !== null && norm(e.epubMeta.title) !== norm(e.title)) {
+        diffs.push(`Titel: „${e.epubMeta.title ?? "—"}" → „${e.title}"`);
+      }
+      if (norm(e.epubMeta.author) !== norm(expectedAuthor)) {
+        diffs.push(`Autor: „${e.epubMeta.author ?? "—"}" → „${expectedAuthor}"`);
+      }
+      if (norm(e.epubMeta.series) !== norm(expectedSeries)) {
+        diffs.push(`Serie: „${e.epubMeta.series ?? "—"}" → „${expectedSeries}"`);
+      }
+      if (
+        e.volume !== null &&
+        e.volumeEnd === null &&
+        e.epubMeta.series_index !== e.volume
+      ) {
+        diffs.push(`Band: ${e.epubMeta.series_index ?? "—"} → ${e.volume}`);
+      }
+      if (diffs.length > 0) {
+        e.issues.push({
+          kind: "metadata-mismatch",
+          message: `EPUB-Metadaten weichen ab: ${diffs.join("; ")}`,
+        });
+      }
     }
   }
 

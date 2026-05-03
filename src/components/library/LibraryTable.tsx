@@ -12,6 +12,7 @@ type Props = {
   onUpdateCluster: (patch: { author?: string; series?: string }) => void;
   onDelete: (entry: LibraryEntry) => void;
   onManualRename: (entry: LibraryEntry, newName: string) => void;
+  onWriteMetadata: () => void;
   busy: boolean;
 };
 
@@ -27,6 +28,7 @@ const ISSUE_COLORS: Record<LibraryIssueKind, string> = {
   unparsable: "bg-red-100 dark:bg-red-900/60 text-red-800 dark:text-red-200",
   orphan: "bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300",
   "title-case": "bg-indigo-100 dark:bg-indigo-900/60 text-indigo-800 dark:text-indigo-200",
+  "metadata-mismatch": "bg-purple-100 dark:bg-purple-900/60 text-purple-800 dark:text-purple-200",
 };
 
 const ISSUE_LABELS: Record<LibraryIssueKind, string> = {
@@ -41,6 +43,7 @@ const ISSUE_LABELS: Record<LibraryIssueKind, string> = {
   unparsable: "?",
   orphan: "Orphan",
   "title-case": "Casing",
+  "metadata-mismatch": "Meta",
 };
 
 // ---------------------------------------------------------------------------
@@ -93,7 +96,7 @@ function ResizeHandle({
   );
 }
 
-export function LibraryTable({ cluster, entries, onApply, onApplyAll, onAskLlm, onUpdateCluster, onDelete, onManualRename, busy }: Props) {
+export function LibraryTable({ cluster, entries, onApply, onApplyAll, onAskLlm, onUpdateCluster, onDelete, onManualRename, onWriteMetadata, busy }: Props) {
   const toggleSelected = useStore((s) => s.toggleLibrarySelected);
   const [widths, setWidths] = useState<ColWidths>(loadWidths);
   const baseWidths = useRef<ColWidths>(widths);
@@ -145,6 +148,10 @@ export function LibraryTable({ cluster, entries, onApply, onApplyAll, onAskLlm, 
 
   const withSuggestions = clusterEntries.filter((e) => e.suggestion && e.status !== "done");
   const selectedWithSuggestions = withSuggestions.filter((e) => e.selected);
+  const hasEpub = clusterEntries.some((e) => e.extension.toLowerCase() === ".epub");
+  const mismatchCount = clusterEntries.filter((e) =>
+    e.issues.some((i) => i.kind === "metadata-mismatch"),
+  ).length;
 
   return (
     <div className="flex flex-col flex-1 overflow-hidden">
@@ -182,6 +189,17 @@ export function LibraryTable({ cluster, entries, onApply, onApplyAll, onAskLlm, 
             {busy
               ? "Wende an…"
               : `${selectedWithSuggestions.length} ausgewählte anwenden`}
+          </button>
+        )}
+        {hasEpub && (
+          <button
+            onClick={onWriteMetadata}
+            disabled={busy}
+            className="px-3 py-1.5 rounded-md bg-purple-600 hover:bg-purple-700 disabled:bg-slate-300 dark:disabled:bg-slate-700 disabled:cursor-not-allowed text-white text-xs font-medium"
+            title="Schreibt Autor, Serie, Band und Titel aus dem normierten Dateinamen in die EPUB-OPF-Metadaten."
+          >
+            Metadaten in EPUBs schreiben
+            {mismatchCount > 0 ? ` (${mismatchCount})` : ""}
           </button>
         )}
       </div>

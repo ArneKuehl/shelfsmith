@@ -1,17 +1,34 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
 import { invoke } from "@tauri-apps/api/core";
+import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { useStore } from "../../lib/store";
-import { analyzeLibrary, reanalyze } from "../../lib/library";
+import { analyzeLibrary, loadEpubMetaForEntries, reanalyze } from "../../lib/library";
+import { toTitleCase } from "../../lib/cluster";
 import { loadLibraryCache, saveLibraryCache } from "../../lib/persist";
 import { decomposeFilename } from "../../lib/lmstudio";
 import { LibraryTree } from "./LibraryTree";
 import { LibraryTable } from "./LibraryTable";
 import { LibraryMissingTable } from "./LibraryMissingTable";
-import { dirname, joinPath } from "../../lib/naming";
-import type { LibraryEntry, RenameResult } from "../../types";
+import { DropConfirmDialog, type DropSource } from "./DropConfirmDialog";
+import { basename, buildProposedName, dirname, extension, joinPath } from "../../lib/naming";
+import type { EpubMeta, LibraryEntry, PdfMeta, RenameResult } from "../../types";
 
 type DeleteResult = { path: string; ok: boolean; error?: string };
+
+const ALLOWED_EXTENSIONS = new Set([".epub", ".pdf", ".mobi", ".azw3"]);
+
+type DropState = {
+  filePath: string;
+  fileName: string;
+  fileExt: string;
+  volume: number | null;
+  volumeEnd: number | null;
+  title: string | null;
+  source: DropSource;
+  llmPrompt?: string;
+  llmRaw?: string;
+};
 
 export function LibraryTab() {
   const settings = useStore((s) => s.settings);
@@ -26,6 +43,7 @@ export function LibraryTab() {
   const setScanning = useStore((s) => s.setLibraryScanning);
   const setSelectedCluster = useStore((s) => s.setLibrarySelectedCluster);
   const updateEntry = useStore((s) => s.updateLibraryEntry);
+  const updateEntries = useStore((s) => s.updateLibraryEntries);
   const error = useStore((s) => s.error);
   const setError = useStore((s) => s.setError);
 
@@ -35,8 +53,36 @@ export function LibraryTab() {
   const [busy, setBusy] = useState(false);
   const [cacheLoaded, setCacheLoaded] = useState(false);
   const [view, setView] = useState<"detail" | "missing">("detail");
+  const [metaProgress, setMetaProgress] = useState<{ done: number; total: number } | null>(null);
+  const [dropState, setDropState] = useState<DropState | null>(null);
+  const [dropHover, setDropHover] = useState(false);
+  const [dropBusy, setDropBusy] = useState(false);
 
   const abortRef = useRef<AbortController | null>(null);
+
+  // Loads EPUB OPF metadata for entries that don't have it yet, then re-analyzes
+  // so the metadata-mismatch badge can appear. Should NOT be called from
+  // reanalyze (e.g. after rename/move) — only after a fresh scan or first
+  // cache-load.
+  const loadAndApplyEpubMeta = async () => {
+    const entries = useStore.getState().libraryEntries;
+    const targets = entries.filter(
+      (e) => e.extension.toLowerCase() === ".epub" && e.epubMeta === undefined,
+    );
+    if (targets.length === 0) return;
+    setMetaProgress({ done: 0, total: targets.length });
+    try {
+      const result = await loadEpubMetaForEntries(entries, (done, total) =>
+        setMetaProgress({ done, total }),
+      );
+      const patches = new Map<string, Partial<LibraryEntry>>();
+      for (const [id, meta] of result) patches.set(id, { epubMeta: meta });
+      updateEntries(patches);
+      runReanalyze();
+    } finally {
+      setMetaProgress(null);
+    }
+  };
 
   // Load cache on mount
   useEffect(() => {
@@ -50,7 +96,12 @@ export function LibraryTab() {
           if (c.settings) setLibSettings(c.settings);
         }
       })
-      .finally(() => setCacheLoaded(true));
+      .finally(() => {
+        setCacheLoaded(true);
+        // Fill in missing EPUB metadata in the background (e.g. after upgrading
+        // from a cache that predates this feature).
+        loadAndApplyEpubMeta().catch(() => {});
+      });
   }, [setEntries, setClusters, setLibSettings]);
 
   // Persist whenever entries/clusters change
@@ -58,6 +109,192 @@ export function LibraryTab() {
     if (!cacheLoaded) return;
     saveLibraryCache({ folder, recursive, entries, clusters, settings: libSettings }).catch(() => {});
   }, [entries, clusters, folder, recursive, libSettings, cacheLoaded]);
+
+  const selectedClusterObj = clusters.find((c) => c.id === selectedCluster) ?? null;
+
+  // -------------------------------------------------------------------------
+  // Drag & Drop: import file into selected cluster
+  // -------------------------------------------------------------------------
+
+  useEffect(() => {
+    let unlisten: (() => void) | undefined;
+    getCurrentWebview()
+      .onDragDropEvent((event) => {
+        const p = event.payload;
+        if (p.type === "over" || p.type === "enter") setDropHover(true);
+        else if (p.type === "leave") setDropHover(false);
+        else if (p.type === "drop") {
+          setDropHover(false);
+          const cluster = useStore.getState().librarySelectedCluster;
+          if (!cluster) return;
+          const filePath = p.paths[0];
+          if (!filePath) return;
+          const fileName = basename(filePath);
+          const ext = extension(fileName).toLowerCase();
+          if (!ALLOWED_EXTENSIONS.has(ext)) {
+            setError(`Nicht unterstütztes Format: ${ext}`);
+            return;
+          }
+          handleDrop(filePath, fileName, ext);
+        }
+      })
+      .then((u) => (unlisten = u));
+    return () => unlisten?.();
+  }, []);
+
+  const handleDrop = async (filePath: string, fileName: string, ext: string) => {
+    setDropBusy(true);
+    setError(null);
+    let volume: number | null = null;
+    let volumeEnd: number | null = null;
+    let title: string | null = null;
+    let source: DropSource = "filename";
+    let llmPrompt: string | undefined;
+    let llmRaw: string | undefined;
+    let metadataHasVolume = false;
+    let metadataHasTitle = false;
+
+    // Step 1: Try embedded metadata
+    if (ext === ".epub") {
+      try {
+        const m = await invoke<EpubMeta>("read_epub_metadata", { path: filePath });
+        if (m.series_index != null) {
+          volume = m.series_index;
+          metadataHasVolume = true;
+        }
+        if (m.title) {
+          title = m.title;
+          metadataHasTitle = true;
+        }
+        if (metadataHasVolume && metadataHasTitle) source = "metadata";
+      } catch { /* ignore */ }
+    } else if (ext === ".pdf") {
+      try {
+        const m = await invoke<PdfMeta>("read_pdf_metadata", { path: filePath });
+        if (m.title) {
+          title = m.title;
+          metadataHasTitle = true;
+        }
+      } catch { /* ignore */ }
+    }
+
+    // Step 2: LLM fallback if metadata didn't provide both volume AND title
+    if (!(metadataHasVolume && metadataHasTitle)) {
+      try {
+        const decomp = await decomposeFilename(settings.lmstudio_url, settings.model, fileName);
+        llmPrompt = decomp.prompt;
+        llmRaw = decomp.raw;
+        if (!metadataHasVolume && decomp.volume !== null) volume = decomp.volume;
+        if (!metadataHasTitle && decomp.title) title = decomp.title;
+        source = metadataHasVolume || metadataHasTitle ? "metadata" : "llm";
+      } catch {
+        // LLM unavailable — keep whatever we have
+        if (!metadataHasVolume && !metadataHasTitle) source = "filename";
+      }
+    }
+
+    setDropState({ filePath, fileName, fileExt: ext, volume, volumeEnd, title, source, llmPrompt, llmRaw });
+    setDropBusy(false);
+  };
+
+  const handleDropReQueryLlm = async () => {
+    if (!dropState) return;
+    setDropBusy(true);
+    try {
+      const decomp = await decomposeFilename(settings.lmstudio_url, settings.model, dropState.fileName);
+      setDropState((prev) =>
+        prev
+          ? {
+              ...prev,
+              volume: decomp.volume,
+              title: decomp.title,
+              source: "llm",
+              llmPrompt: decomp.prompt,
+              llmRaw: decomp.raw,
+            }
+          : null,
+      );
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setDropBusy(false);
+    }
+  };
+
+  const resolveTargetDir = (): { dir: string; warning?: string } => {
+    if (!selectedCluster) return { dir: "", warning: "Keine Serie ausgewählt" };
+    const clusterEntries = entries.filter((e) => e.clusterId === selectedCluster);
+    const dirs = new Set(clusterEntries.map((e) => e.dir));
+    if (dirs.size === 1) return { dir: [...dirs][0] };
+    if (dirs.size === 0) return { dir: "", warning: "Kein Zielverzeichnis ermittelbar" };
+    const counts = new Map<string, number>();
+    for (const e of clusterEntries) counts.set(e.dir, (counts.get(e.dir) ?? 0) + 1);
+    let bestDir = "";
+    let bestCount = 0;
+    for (const [d, c] of counts) {
+      if (c > bestCount) {
+        bestDir = d;
+        bestCount = c;
+      }
+    }
+    return { dir: bestDir, warning: `Dateien in ${dirs.size} verschiedenen Verzeichnissen` };
+  };
+
+  const dropTargetInfo = useMemo(() => resolveTargetDir(), [selectedCluster, entries]);
+
+  const dropProposedName = useMemo(() => {
+    if (!dropState || !selectedClusterObj) return "";
+    const cluster = selectedClusterObj;
+    const author = libSettings.titleCase
+      ? toTitleCase(cluster.canonicalAuthor)
+      : cluster.canonicalAuthor;
+    const series = libSettings.titleCase
+      ? toTitleCase(cluster.canonicalSeries)
+      : cluster.canonicalSeries;
+    const clusterEntries = entries.filter((e) => e.clusterId === cluster.id);
+    const existingMax = clusterEntries.reduce((m, e) => {
+      const candidate = Math.max(e.volume ?? 0, e.volumeEnd ?? 0);
+      return candidate > m ? candidate : m;
+    }, 0);
+    const maxVol = Math.max(existingMax, dropState.volume ?? 0, dropState.volumeEnd ?? 0);
+    const meta = { author, series };
+    const entry = {
+      id: "",
+      originalPath: dropState.filePath,
+      originalName: dropState.fileName,
+      extension: dropState.fileExt,
+      selected: false,
+      volume: dropState.volume,
+      volumeEnd: dropState.volumeEnd,
+      title: dropState.title,
+      proposedName: "",
+      status: "idle" as const,
+    };
+    return buildProposedName(meta, entry, maxVol, settings.include_title_in_name);
+  }, [dropState, selectedClusterObj, entries, libSettings.titleCase, settings.include_title_in_name]);
+
+  const handleDropConfirm = async () => {
+    if (!dropState || !dropProposedName || !dropTargetInfo.dir) return;
+    setDropBusy(true);
+    setError(null);
+    const targetPath = joinPath(dropTargetInfo.dir, dropProposedName);
+    try {
+      const results = await invoke<RenameResult[]>("rename_files", {
+        pairs: [{ from: dropState.filePath, to: targetPath }],
+      });
+      const r = results[0];
+      if (r.ok) {
+        setDropState(null);
+        await rescanPreservingCluster();
+      } else {
+        setError(r.error ?? "Einsortieren fehlgeschlagen");
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setDropBusy(false);
+    }
+  };
 
   const pickFolder = async () => {
     const dir = await open({ directory: true, multiple: false });
@@ -76,6 +313,9 @@ export function LibraryTab() {
       setClusters(result.clusters);
       if (result.entries.length === 0) {
         setError("Keine unterstützten Dateien gefunden.");
+      } else {
+        // Background: read EPUB OPF metadata so mismatch badges can light up.
+        loadAndApplyEpubMeta().catch(() => {});
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -97,13 +337,30 @@ export function LibraryTab() {
     if (!folder) return;
     const prevId = useStore.getState().librarySelectedCluster;
     const prev = useStore.getState().libraryClusters.find((c) => c.id === prevId);
+    const prevEntries = useStore.getState().libraryEntries;
     setScanning(true);
     try {
       const result = await analyzeLibrary(folder, recursive, libSettings);
-      setEntries(result.entries);
-      setClusters(result.clusters);
+      // Preserve previously-loaded EPUB metadata across rescans. Match by the
+      // post-rename path (suggestion.proposedPath) first, then by the original
+      // path. This keeps the metadata-mismatch badge stable after renames/moves
+      // without re-reading every EPUB from disk.
+      const metaByPath = new Map<string, EpubMeta | null>();
+      for (const e of prevEntries) {
+        if (e.epubMeta === undefined) continue;
+        if (e.suggestion?.proposedPath) metaByPath.set(e.suggestion.proposedPath, e.epubMeta);
+        metaByPath.set(e.originalPath, e.epubMeta);
+      }
+      const carried = result.entries.map((e) => {
+        const m = metaByPath.get(e.originalPath);
+        return m === undefined ? e : { ...e, epubMeta: m };
+      });
+      // Re-run analysis so mismatch badges reflect the carried-over metadata.
+      const reanalyzed = reanalyze(carried, libSettings);
+      setEntries(reanalyzed.entries);
+      setClusters(reanalyzed.clusters);
       if (prev) {
-        const match = result.clusters.find(
+        const match = reanalyzed.clusters.find(
           (c) => c.authorKey === prev.authorKey && c.seriesKey === prev.seriesKey,
         );
         setSelectedCluster(match ? match.id : null);
@@ -202,6 +459,63 @@ export function LibraryTab() {
     setBusy(false);
   };
 
+  const writeMetadataInCluster = async () => {
+    if (!selectedCluster) return;
+    const cluster = clusters.find((c) => c.id === selectedCluster);
+    if (!cluster) return;
+    const epubEntries = entries.filter(
+      (e) => e.clusterId === selectedCluster && e.extension.toLowerCase() === ".epub",
+    );
+    if (epubEntries.length === 0) return;
+
+    setBusy(true);
+    setError(null);
+
+    const expectedAuthor = libSettings.titleCase
+      ? toTitleCase(cluster.canonicalAuthor)
+      : cluster.canonicalAuthor;
+    const expectedSeries = libSettings.titleCase
+      ? toTitleCase(cluster.canonicalSeries)
+      : cluster.canonicalSeries;
+
+    const patches = new Map<string, Partial<LibraryEntry>>();
+    for (const entry of epubEntries) {
+      // Skip omnibus volumes for series_index — but still write title/author/series.
+      const isOmnibus = entry.volumeEnd !== null && entry.volumeEnd > (entry.volume ?? 0);
+      const patch = {
+        title: entry.title ?? null,
+        author: expectedAuthor || null,
+        series: expectedSeries || null,
+        series_index: !isOmnibus && entry.volume !== null ? entry.volume : null,
+      };
+      try {
+        await invoke("write_epub_metadata", { path: entry.originalPath, patch });
+        patches.set(entry.id, {
+          epubMeta: {
+            title: patch.title,
+            author: patch.author,
+            author_file_as: patch.author,
+            series: patch.series,
+            series_index: patch.series_index,
+            isbn: entry.epubMeta?.isbn ?? null,
+          },
+          status: "idle",
+          error: undefined,
+        });
+      } catch (e) {
+        updateEntry(entry.id, {
+          status: "error",
+          error: e instanceof Error ? e.message : String(e),
+        });
+      }
+    }
+    if (patches.size > 0) {
+      updateEntries(patches);
+      runReanalyze();
+    }
+    setBusy(false);
+  };
+
   const deleteEntry = async (entry: LibraryEntry) => {
     setBusy(true);
     setError(null);
@@ -289,16 +603,21 @@ export function LibraryTab() {
     setTimeout(runReanalyze, 0);
   };
 
-  const selectedClusterObj = clusters.find((c) => c.id === selectedCluster) ?? null;
-
   const issueCount = entries.reduce(
-    (n, e) => n + e.issues.filter((i) => i.kind !== "volume-gap" && i.kind !== "range-or-omnibus").length,
+    (n, e) =>
+      n +
+      e.issues.filter(
+        (i) =>
+          i.kind !== "volume-gap" &&
+          i.kind !== "range-or-omnibus" &&
+          i.kind !== "metadata-mismatch",
+      ).length,
     0,
   );
   const clusterCount = clusters.length;
 
   return (
-    <div className="flex flex-col flex-1 overflow-hidden">
+    <div className={`flex flex-col flex-1 overflow-hidden ${dropHover && selectedCluster ? "ring-2 ring-blue-500 ring-inset" : ""}`}>
       {/* Toolbar */}
       <div className="border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 px-4 py-3 flex flex-wrap items-end gap-3">
         <div className="flex-1 min-w-[16rem]">
@@ -358,6 +677,9 @@ export function LibraryTab() {
         {entries.length > 0 && (
           <span className="text-xs text-slate-500 pb-2 self-end">
             {entries.length} Dateien, {clusterCount} Cluster, {issueCount} Issues
+            {metaProgress
+              ? ` · Lese EPUB-Meta ${metaProgress.done}/${metaProgress.total}`
+              : ""}
           </span>
         )}
         {entries.length > 0 && (
@@ -418,6 +740,7 @@ export function LibraryTab() {
               onUpdateCluster={updateCluster}
               onDelete={deleteEntry}
               onManualRename={manualRename}
+              onWriteMetadata={writeMetadataInCluster}
               busy={busy}
             />
           </>
@@ -438,6 +761,28 @@ export function LibraryTab() {
           {error}
         </div>
       )}
+
+      <DropConfirmDialog
+        open={dropState !== null}
+        filePath={dropState?.filePath ?? ""}
+        fileName={dropState?.fileName ?? ""}
+        volume={dropState?.volume ?? null}
+        volumeEnd={dropState?.volumeEnd ?? null}
+        title={dropState?.title ?? null}
+        source={dropState?.source ?? "filename"}
+        proposedName={dropProposedName}
+        targetDir={dropTargetInfo.dir}
+        dirWarning={dropTargetInfo.warning}
+        llmPrompt={dropState?.llmPrompt}
+        llmRaw={dropState?.llmRaw}
+        busy={dropBusy}
+        onVolumeChange={(v) => setDropState((s) => (s ? { ...s, volume: v } : null))}
+        onVolumeEndChange={(v) => setDropState((s) => (s ? { ...s, volumeEnd: v } : null))}
+        onTitleChange={(t) => setDropState((s) => (s ? { ...s, title: t } : null))}
+        onReQueryLlm={handleDropReQueryLlm}
+        onConfirm={handleDropConfirm}
+        onCancel={() => setDropState(null)}
+      />
     </div>
   );
 }

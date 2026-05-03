@@ -13,6 +13,7 @@ pub fn run() {
             commands::delete::delete_files,
             commands::scan::scan_directory,
             commands::scan::read_epub_metadata,
+            commands::scan::write_epub_metadata,
             commands::scan::read_pdf_metadata,
         ])
         .run(tauri::generate_context!())
