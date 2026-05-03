@@ -96,12 +96,23 @@ function ResizeHandle({
   );
 }
 
+function buildCopyString(author: string, series: string): string {
+  const parts = author.split(",").map((s) => s.trim());
+  const name = parts.length === 2 ? `${parts[1]} ${parts[0]}` : author;
+  const raw = `${name} ${series}`.trim();
+  return raw
+    .replace(/[^a-zA-Z0-9äöüÄÖÜß\s-]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 export function LibraryTable({ cluster, entries, onApply, onApplyAll, onAskLlm, onUpdateCluster, onDelete, onManualRename, onWriteMetadata, busy }: Props) {
   const toggleSelected = useStore((s) => s.toggleLibrarySelected);
   const [widths, setWidths] = useState<ColWidths>(loadWidths);
   const baseWidths = useRef<ColWidths>(widths);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingName, setEditingName] = useState("");
+  const [copied, setCopied] = useState(false);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -171,6 +182,28 @@ export function LibraryTable({ cluster, entries, onApply, onApplyAll, onAskLlm, 
             className="text-sm"
             onCommit={(v) => onUpdateCluster({ series: v })}
           />
+          <button
+            type="button"
+            title="Autor + Serie kopieren"
+            className="ml-1 p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors flex-shrink-0"
+            onClick={() => {
+              const text = buildCopyString(cluster.canonicalAuthor, cluster.canonicalSeries ?? "");
+              navigator.clipboard.writeText(text);
+              setCopied(true);
+              setTimeout(() => setCopied(false), 1500);
+            }}
+          >
+            {copied ? (
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4 text-green-500">
+                <path fillRule="evenodd" d="M16.704 4.153a.75.75 0 0 1 .143 1.052l-8 10.5a.75.75 0 0 1-1.127.075l-4.5-4.5a.75.75 0 0 1 1.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 0 1 1.05-.143Z" clipRule="evenodd" />
+              </svg>
+            ) : (
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+                <path d="M7 3.5A1.5 1.5 0 0 1 8.5 2h3.879a1.5 1.5 0 0 1 1.06.44l3.122 3.12A1.5 1.5 0 0 1 17 6.622V12.5a1.5 1.5 0 0 1-1.5 1.5h-1v-3.379a3 3 0 0 0-.879-2.121L10.5 5.379A3 3 0 0 0 8.379 4.5H7v-1Z" />
+                <path d="M4.5 6A1.5 1.5 0 0 0 3 7.5v9A1.5 1.5 0 0 0 4.5 18h7a1.5 1.5 0 0 0 1.5-1.5v-5.879a1.5 1.5 0 0 0-.44-1.06L9.44 6.439A1.5 1.5 0 0 0 8.378 6H4.5Z" />
+              </svg>
+            )}
+          </button>
           <span className="ml-2 text-xs text-slate-400 flex-shrink-0">
             {clusterEntries.length} Datei(en)
           </span>
