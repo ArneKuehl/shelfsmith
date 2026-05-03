@@ -192,6 +192,16 @@ function sortEntries(entries: BulkEntry[], by: "author" | "series"): BulkEntry[]
   return decorated.map((d) => d.e);
 }
 
+function buildCopyString(author: string, series: string): string {
+  const parts = author.split(",").map((s) => s.trim());
+  const name = parts.length === 2 ? `${parts[1]} ${parts[0]}` : author;
+  const raw = `${name} ${series}`.trim();
+  return raw
+    .replace(/[^a-zA-Z0-9äöüÄÖÜß\s-]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 function Row({
   entry: e,
   onChange,
@@ -210,6 +220,7 @@ function Row({
   onEditEnd: () => void;
 }) {
   const [showLlmInfo, setShowLlmInfo] = useState(false);
+  const [copied, setCopied] = useState(false);
   const editProps = { onFocus: onEditStart, onBlur: onEditEnd };
   const rowBg =
     e.status === "error"
@@ -249,6 +260,27 @@ function Row({
             {...editProps}
           />
         </Field>
+        <button
+          type="button"
+          title="Autor + Serie kopieren"
+          className="mb-0.5 p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
+          onClick={() => {
+            const text = buildCopyString(e.author, e.series);
+            navigator.clipboard.writeText(text);
+            setCopied(true);
+            setTimeout(() => setCopied(false), 1500);
+          }}
+        >
+          {copied ? (
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4 text-green-500">
+              <path fillRule="evenodd" d="M16.704 4.153a.75.75 0 0 1 .143 1.052l-8 10.5a.75.75 0 0 1-1.127.075l-4.5-4.5a.75.75 0 0 1 1.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 0 1 1.05-.143Z" clipRule="evenodd" />
+            </svg>
+          ) : (
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+              <path fillRule="evenodd" d="M15.988 3.012A2.25 2.25 0 0 0 13.75 1h-7.5A2.25 2.25 0 0 0 4.012 3.012M15.988 3.012a2.234 2.234 0 0 1 .262.988V17.25A2.25 2.25 0 0 1 14 19.5H6a2.25 2.25 0 0 1-2.25-2.25V4a2.234 2.234 0 0 1 .262-.988m11.976 0A2.25 2.25 0 0 0 3.75 2h12.5a2.25 2.25 0 0 0-2.262 1.012" clipRule="evenodd" />
+            </svg>
+          )}
+        </button>
         <Field label="Band" className="w-20">
           <VolumeInput
             value={e.volume}
