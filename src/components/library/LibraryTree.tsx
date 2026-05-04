@@ -36,7 +36,7 @@ export function LibraryTree({ clusters, selectedClusterId, onSelect, filter }: P
     <div className="flex flex-col overflow-y-auto text-sm">
       {sorted.length === 0 && (
         <div className="px-3 py-4 text-slate-500 text-center text-xs">
-          {lf ? "Keine Treffer" : "Noch kein Scan durchgeführt"}
+          {lf ? "No results" : "No scan performed yet"}
         </div>
       )}
       {[...byAuthor.entries()].map(([aKey, authorClusters]) => (
@@ -55,7 +55,7 @@ export function LibraryTree({ clusters, selectedClusterId, onSelect, filter }: P
               }`}
             >
               <span className="truncate">
-                {c.canonicalSeries || "(Ohne Serie)"}
+                {c.canonicalSeries || "(No series)"}
                 <span className="ml-1.5 text-xs text-slate-400">({c.entryIds.length})</span>
               </span>
               {c.issueCount > 0 && (
@@ -66,7 +66,7 @@ export function LibraryTree({ clusters, selectedClusterId, onSelect, filter }: P
               {c.missingVolumes.length > 0 && (
                 <span
                   className="ml-1 flex-shrink-0 inline-flex items-center justify-center w-5 h-5 rounded-full bg-blue-100 dark:bg-blue-900/60 text-blue-700 dark:text-blue-300 text-[10px] font-bold"
-                  title={`Fehlend: ${c.missingVolumes.join(", ")}`}
+                  title={`Missing: ${c.missingVolumes.join(", ")}`}
                 >
                   ?
                 </span>

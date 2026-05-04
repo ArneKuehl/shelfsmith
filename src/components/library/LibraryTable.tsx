@@ -32,12 +32,12 @@ const ISSUE_COLORS: Record<LibraryIssueKind, string> = {
 };
 
 const ISSUE_LABELS: Record<LibraryIssueKind, string> = {
-  "author-variant": "Autor",
-  "series-variant": "Serie",
-  "duplicate-volume": "Duplikat",
+  "author-variant": "Author",
+  "series-variant": "Series",
+  "duplicate-volume": "Duplicate",
   "format-duplicate": "Format",
   "format-preference": "Format",
-  "volume-gap": "Lücke",
+  "volume-gap": "Gap",
   "range-or-omnibus": "Range",
   "unpadded-volume": "Padding",
   unparsable: "?",
@@ -143,7 +143,7 @@ export function LibraryTable({ cluster, entries, onApply, onApplyAll, onAskLlm, 
   if (!cluster) {
     return (
       <div className="flex-1 flex items-center justify-center text-slate-400 text-sm">
-        Serie in der linken Spalte wählen
+        Select a series in the left panel
       </div>
     );
   }
@@ -171,20 +171,20 @@ export function LibraryTable({ cluster, entries, onApply, onApplyAll, onAskLlm, 
         <div className="flex-1 min-w-0 flex items-center gap-1">
           <EditableLabel
             value={cluster.canonicalAuthor}
-            placeholder="Autor"
+            placeholder="Author"
             className="font-semibold text-sm"
             onCommit={(v) => onUpdateCluster({ author: v })}
           />
           <span className="mx-1 text-slate-400">—</span>
           <EditableLabel
             value={cluster.canonicalSeries || ""}
-            placeholder="Serie"
+            placeholder="Series"
             className="text-sm"
             onCommit={(v) => onUpdateCluster({ series: v })}
           />
           <button
             type="button"
-            title="Autor + Serie kopieren"
+            title="Copy author + series"
             className="ml-1 p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors flex-shrink-0"
             onClick={() => {
               const text = buildCopyString(cluster.canonicalAuthor, cluster.canonicalSeries ?? "");
@@ -205,12 +205,12 @@ export function LibraryTable({ cluster, entries, onApply, onApplyAll, onAskLlm, 
             )}
           </button>
           <span className="ml-2 text-xs text-slate-400 flex-shrink-0">
-            {clusterEntries.length} Datei(en)
+            {clusterEntries.length} file(s)
           </span>
         </div>
         {cluster.missingVolumes.length > 0 && (
           <span className="text-xs text-rose-600 dark:text-rose-400">
-            Fehlend: {cluster.missingVolumes.join(", ")}
+            Missing: {cluster.missingVolumes.join(", ")}
           </span>
         )}
         {withSuggestions.length > 0 && (
@@ -220,8 +220,8 @@ export function LibraryTable({ cluster, entries, onApply, onApplyAll, onAskLlm, 
             className="px-3 py-1.5 rounded-md bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-300 dark:disabled:bg-slate-700 disabled:cursor-not-allowed text-white text-xs font-medium"
           >
             {busy
-              ? "Wende an…"
-              : `${selectedWithSuggestions.length} ausgewählte anwenden`}
+              ? "Applying…"
+              : `Apply ${selectedWithSuggestions.length} selected`}
           </button>
         )}
         {hasEpub && (
@@ -229,9 +229,9 @@ export function LibraryTable({ cluster, entries, onApply, onApplyAll, onAskLlm, 
             onClick={onWriteMetadata}
             disabled={busy}
             className="px-3 py-1.5 rounded-md bg-purple-600 hover:bg-purple-700 disabled:bg-slate-300 dark:disabled:bg-slate-700 disabled:cursor-not-allowed text-white text-xs font-medium"
-            title="Schreibt Autor, Serie, Band und Titel aus dem normierten Dateinamen in die EPUB-OPF-Metadaten."
+            title="Writes author, series, volume, and title from the normalized filename to the EPUB OPF metadata."
           >
-            Metadaten in EPUBs schreiben
+            Write metadata to EPUBs
             {mismatchCount > 0 ? ` (${mismatchCount})` : ""}
           </button>
         )}
@@ -257,12 +257,12 @@ export function LibraryTable({ cluster, entries, onApply, onApplyAll, onAskLlm, 
                         if (e.selected !== checked) toggleSelected(e.id);
                       }
                     }}
-                    title="Alle auswählen / abwählen"
+                    title="Select / deselect all"
                   />
                 )}
               </div>
               <div className="relative px-2 py-1.5 font-medium text-xs uppercase tracking-wider text-slate-600 dark:text-slate-400 flex-shrink-0" style={{ width: widths.datei }}>
-                Datei
+                File
                 <ResizeHandle onDrag={onDragStart("datei")} />
               </div>
               <div className="relative px-2 py-1.5 font-medium text-xs uppercase tracking-wider text-slate-600 dark:text-slate-400 flex-shrink-0" style={{ width: widths.issues }}>
@@ -270,7 +270,7 @@ export function LibraryTable({ cluster, entries, onApply, onApplyAll, onAskLlm, 
                 <ResizeHandle onDrag={onDragStart("issues")} />
               </div>
               <div className="relative px-2 py-1.5 font-medium text-xs uppercase tracking-wider text-slate-600 dark:text-slate-400 flex-shrink-0" style={{ width: widths.vorschlag }}>
-                Vorschlag
+                Suggestion
                 <ResizeHandle onDrag={onDragStart("vorschlag")} />
               </div>
               <div className="px-2 py-1.5 font-medium text-xs uppercase tracking-wider text-slate-600 dark:text-slate-400 flex-shrink-0" style={{ width: widths.actions }} />
@@ -338,7 +338,7 @@ export function LibraryTable({ cluster, entries, onApply, onApplyAll, onAskLlm, 
                         onClick={() => setEditingId(null)}
                         className="px-2 py-0.5 rounded bg-slate-300 dark:bg-slate-700 hover:bg-slate-400 dark:hover:bg-slate-600 text-xs"
                       >
-                        Abbr.
+                        Cancel
                       </button>
                     </div>
                   ) : (
@@ -395,11 +395,11 @@ export function LibraryTable({ cluster, entries, onApply, onApplyAll, onAskLlm, 
                     </div>
                   )}
                   {e.status === "done" && (
-                    <span className="text-xs text-emerald-600 dark:text-emerald-400">Erledigt</span>
+                    <span className="text-xs text-emerald-600 dark:text-emerald-400">Done</span>
                   )}
                   {e.status === "error" && (
                     <span className="text-xs text-rose-600 dark:text-rose-400" title={e.error}>
-                      Fehler
+                      Error
                     </span>
                   )}
                 </div>
@@ -414,7 +414,7 @@ export function LibraryTable({ cluster, entries, onApply, onApplyAll, onAskLlm, 
                       onClick={() => onAskLlm(e)}
                       disabled={busy}
                       className="px-2 py-1 rounded bg-violet-600 hover:bg-violet-700 disabled:bg-slate-300 dark:disabled:bg-slate-700 text-white text-xs"
-                      title="LLM fragen"
+                      title="Ask LLM"
                     >
                       LLM
                     </button>
@@ -436,7 +436,7 @@ export function LibraryTable({ cluster, entries, onApply, onApplyAll, onAskLlm, 
                       }}
                       disabled={busy}
                       className="px-2 py-1 rounded bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 disabled:opacity-50 text-slate-700 dark:text-slate-200 text-xs"
-                      title="Manuell umbenennen"
+                      title="Rename manually"
                     >
                       ✎
                     </button>
@@ -451,9 +451,9 @@ export function LibraryTable({ cluster, entries, onApply, onApplyAll, onAskLlm, 
                           }}
                           disabled={busy}
                           className="px-2 py-1 rounded bg-rose-600 hover:bg-rose-700 disabled:bg-slate-300 dark:disabled:bg-slate-700 text-white text-xs"
-                          title="Wirklich in den Papierkorb"
+                          title="Really move to trash"
                         >
-                          Sicher?
+                          Sure?
                         </button>
                         <button
                           onClick={() => setConfirmDeleteId(null)}
@@ -467,7 +467,7 @@ export function LibraryTable({ cluster, entries, onApply, onApplyAll, onAskLlm, 
                         onClick={() => setConfirmDeleteId(e.id)}
                         disabled={busy}
                         className="px-2 py-1 rounded bg-rose-100 hover:bg-rose-200 dark:bg-rose-900/40 dark:hover:bg-rose-900/70 disabled:opacity-50 text-rose-700 dark:text-rose-300 text-xs"
-                        title="In den Papierkorb verschieben"
+                        title="Move to trash"
                       >
                         🗑
                       </button>
@@ -511,7 +511,7 @@ function EditableLabel({
       <button
         type="button"
         className={`${className ?? ""} hover:bg-slate-200 dark:hover:bg-slate-700 rounded px-1.5 py-0.5 -mx-1.5 cursor-text truncate`}
-        title="Klicken zum Bearbeiten"
+        title="Click to edit"
         onClick={() => setEditing(true)}
       >
         {value || <span className="text-slate-400 italic">{placeholder}</span>}

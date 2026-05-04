@@ -79,7 +79,7 @@ export function BulkTab() {
       const fresh = await scanFolder(folder, recursive);
       setEntries(fresh);
       if (fresh.length === 0) {
-        setError("Keine unterstützten Dateien gefunden.");
+        setError("No supported files found.");
         return;
       }
       // LLM availability check up front so we don't probe per file.
@@ -208,20 +208,20 @@ function Toolbar(props: {
     <div className="border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 px-4 py-3 flex flex-wrap items-end gap-3">
       <div className="flex-1 min-w-[16rem]">
         <label className="block text-xs uppercase tracking-wider text-slate-600 dark:text-slate-400 mb-1">
-          Quellordner
+          Source folder
         </label>
         <div className="flex items-center gap-2">
           <span
             className="flex-1 truncate text-sm text-slate-800 dark:text-slate-200 bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded px-2 py-1.5"
             title={props.folder ?? "—"}
           >
-            {props.folder ?? "(kein Ordner gewählt)"}
+            {props.folder ?? "(no folder selected)"}
           </span>
           <button
             className="px-2 py-1.5 rounded bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-xs"
             onClick={props.onPickFolder}
           >
-            Ordner wählen…
+            Choose folder…
           </button>
         </div>
       </div>
@@ -231,11 +231,11 @@ function Toolbar(props: {
           checked={props.recursive}
           onChange={(e) => props.onToggleRecursive(e.target.checked)}
         />
-        Rekursiv
+        Recursive
       </label>
       <div className="pb-2">
         <label className="block text-xs uppercase tracking-wider text-slate-600 dark:text-slate-400 mb-1">
-          Sortierung
+          Sort by
         </label>
         <div className="inline-flex rounded overflow-hidden border border-slate-300 dark:border-slate-700">
           <button
@@ -246,7 +246,7 @@ function Toolbar(props: {
             }`}
             onClick={() => props.onSortByChange("author")}
           >
-            Autor
+            Author
           </button>
           <button
             className={`px-3 py-1.5 text-xs ${
@@ -256,26 +256,26 @@ function Toolbar(props: {
             }`}
             onClick={() => props.onSortByChange("series")}
           >
-            Serie
+            Series
           </button>
         </div>
       </div>
       <div className="flex-1 min-w-[16rem]">
         <label className="block text-xs uppercase tracking-wider text-slate-600 dark:text-slate-400 mb-1">
-          Ziel-Ordner (optional)
+          Target folder (optional)
         </label>
         <div className="flex items-center gap-2">
           <span
             className="flex-1 truncate text-sm text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded px-2 py-1.5"
             title={props.targetDir ?? "—"}
           >
-            {props.targetDir ?? "(am Ort umbenennen)"}
+            {props.targetDir ?? "(rename in place)"}
           </span>
           <button
             className="px-2 py-1.5 rounded bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-xs"
             onClick={props.onPickTarget}
           >
-            Wählen…
+            Choose…
           </button>
           {props.targetDir && (
             <button
@@ -293,8 +293,8 @@ function Toolbar(props: {
           onClick={props.onCancel}
         >
           {props.progress
-            ? `Abbrechen (${props.progress.done}/${props.progress.total})`
-            : "Abbrechen"}
+            ? `Cancel (${props.progress.done}/${props.progress.total})`
+            : "Cancel"}
         </button>
       ) : (
         <button
@@ -302,12 +302,12 @@ function Toolbar(props: {
           onClick={props.onScan}
           disabled={!props.folder}
         >
-          Scannen
+          Scan
         </button>
       )}
       {props.totalCount > 0 && (
         <span className="text-xs text-slate-500 pb-2 self-end">
-          {props.totalCount} Datei(en)
+          {props.totalCount} file(s)
         </span>
       )}
       {props.llmEnabled && (
@@ -321,10 +321,10 @@ function Toolbar(props: {
           }`}
           title={
             props.llmActive === true
-              ? "Lokales LLM erreichbar — wird als Fallback genutzt"
+              ? "Local LLM reachable — used as fallback"
               : props.llmActive === false
-                ? "Lokales LLM nicht erreichbar — Schritt wird übersprungen"
-                : "LLM-Status wird beim Scannen geprüft"
+                ? "Local LLM unreachable — step skipped"
+                : "LLM status checked on scan"
           }
         >
           {props.llmActive === true ? "LLM ✓" : props.llmActive === false ? "LLM ✗" : "LLM ?"}
@@ -353,7 +353,7 @@ function BulkUndoBar() {
       const results = await invoke<RenameResult[]>("rename_files", { pairs: reversed });
       const failed = results.filter((r) => !r.ok);
       if (failed.length > 0) {
-        setError(`${failed.length} Undo-Operation(en) fehlgeschlagen.`);
+        setError(`${failed.length} undo operation(s) failed.`);
       } else {
         setEntries([
           ...entries,
@@ -371,13 +371,13 @@ function BulkUndoBar() {
   return (
     <div className="px-4 py-2 border-t border-slate-200 dark:border-slate-800 bg-amber-100 dark:bg-amber-950/40 flex items-center justify-between text-sm">
       <span>
-        Letzte Bulk-Umbenennung um {time} ({undo.pairs.length} Datei(en))
+        Last bulk rename at {time} ({undo.pairs.length} file(s))
       </span>
       <button
         className="px-3 py-1 rounded-md bg-amber-600 hover:bg-amber-700 text-white text-sm"
         onClick={doUndo}
       >
-        Rückgängig
+        Undo
       </button>
     </div>
   );

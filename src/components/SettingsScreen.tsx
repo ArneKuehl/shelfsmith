@@ -74,18 +74,18 @@ export function SettingsScreen({ onClose }: { onClose: () => void }) {
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between px-5 py-3 border-b border-slate-200 dark:border-slate-800">
-          <h2 className="text-lg font-semibold">Einstellungen</h2>
+          <h2 className="text-lg font-semibold">Settings</h2>
           <button
             className="px-2 py-1 rounded text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
             onClick={onClose}
-            aria-label="Schließen"
+            aria-label="Close"
           >
             ✕
           </button>
         </div>
         <div className="px-5 py-4 space-y-6">
           <Section title="LM Studio">
-            <Row label="Server-URL">
+            <Row label="Server URL">
               <input
                 className="ss-input"
                 value={settings.lmstudio_url}
@@ -93,7 +93,7 @@ export function SettingsScreen({ onClose }: { onClose: () => void }) {
                 placeholder="http://localhost:1234"
               />
             </Row>
-            <Row label="Modell">
+            <Row label="Model">
               <input
                 className="ss-input"
                 value={settings.model}
@@ -106,17 +106,17 @@ export function SettingsScreen({ onClose }: { onClose: () => void }) {
                 onClick={probe}
                 className="px-3 py-1.5 rounded bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-xs"
               >
-                Verbindung testen
+                Test connection
               </button>
-              {llmStatus === "checking" && <span className="text-xs text-slate-500">Prüfe…</span>}
+              {llmStatus === "checking" && <span className="text-xs text-slate-500">Checking…</span>}
               {llmStatus === "ok" && (
                 <span className="text-xs text-emerald-700 dark:text-emerald-300">
-                  Erreichbar
+                  Reachable
                 </span>
               )}
               {llmStatus === "fail" && (
                 <span className="text-xs text-rose-700 dark:text-rose-300">
-                  Nicht erreichbar
+                  Unreachable
                 </span>
               )}
               {llmStatus === "ok" && llmDetail && (
@@ -137,18 +137,18 @@ export function SettingsScreen({ onClose }: { onClose: () => void }) {
                   onClick={openLog}
                   className="px-2 py-0.5 rounded bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700"
                 >
-                  Öffnen
+                  Open
                 </button>
               </div>
             )}
           </Section>
 
-          <Section title="Serien-Modus">
+          <Section title="Series Mode">
             <Toggle
               checked={settings.include_title_in_name}
               onChange={(v) => update({ include_title_in_name: v })}
-              label="Titel im Dateinamen"
-              hint="„Sanderson, Brandon - Stormlight Archive (02) - Words of Radiance.epub"
+              label="Include title in filename"
+              hint='"Sanderson, Brandon - Stormlight Archive (02) - Words of Radiance.epub"'
             />
             <Toggle
               checked={settings.move_after_rename}
@@ -163,11 +163,11 @@ export function SettingsScreen({ onClose }: { onClose: () => void }) {
                 }
                 update({ move_after_rename: v });
               }}
-              label="Nach Umbenennen verschieben"
+              label="Move after rename"
             />
             {settings.move_after_rename && (
               <DirField
-                label="Ziel-Ordner"
+                label="Target folder"
                 value={settings.move_target_dir}
                 onPick={async () => {
                   const dir = await open({ directory: true, multiple: false });
@@ -178,20 +178,20 @@ export function SettingsScreen({ onClose }: { onClose: () => void }) {
             )}
           </Section>
 
-          <Section title="Bibliothek-Modus">
+          <Section title="Library Mode">
             <Toggle
               checked={settings.bulk_recursive_default}
               onChange={(v) => update({ bulk_recursive_default: v })}
-              label="Standardmäßig rekursiv scannen"
+              label="Scan recursively by default"
             />
             <Toggle
               checked={settings.bulk_llm_fallback}
               onChange={(v) => update({ bulk_llm_fallback: v })}
-              label="Lokales LLM als Fallback nutzen"
-              hint="Wenn eingebettete Metadaten fehlen, zerlegt das LLM den Dateinamen, bevor die Web-Abfrage läuft. Wird übersprungen, falls das LLM nicht erreichbar ist."
+              label="Use local LLM as fallback"
+              hint="When embedded metadata is missing, the LLM parses the filename before the web query runs. Skipped if the LLM is unreachable."
             />
             <DirField
-              label="Standard-Ziel-Ordner (optional)"
+              label="Default target folder (optional)"
               value={settings.bulk_target_dir}
               onPick={async () => {
                 const dir = await open({ directory: true, multiple: false });
@@ -201,14 +201,14 @@ export function SettingsScreen({ onClose }: { onClose: () => void }) {
             />
           </Section>
 
-          <Section title="Aufräumen-Modus">
+          <Section title="Clean-up Mode">
             <Toggle
               checked={libSettings.titleCase}
               onChange={(v) => setLibSettings({ titleCase: v })}
-              label="Title-Case-Normalisierung"
-              hint="Erzwingt Großschreibung am Wortanfang bei Autoren- und Seriennamen"
+              label="Title case normalization"
+              hint="Enforces capitalization at word start for author and series names"
             />
-            <Row label="Fuzzy-Schwelle (Clustering)">
+            <Row label="Fuzzy threshold (clustering)">
               <div className="flex items-center gap-2">
                 <input
                   type="range"
@@ -226,12 +226,12 @@ export function SettingsScreen({ onClose }: { onClose: () => void }) {
                 </span>
               </div>
               <span className="block text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                Höher = strenger (weniger Matches), niedriger = toleranter (mehr Matches)
+                Higher = stricter (fewer matches), lower = more lenient (more matches)
               </span>
             </Row>
           </Section>
 
-          <Section title="Darstellung">
+          <Section title="Appearance">
             <div className="flex items-center gap-3">
               <span className="text-sm text-slate-700 dark:text-slate-300">Theme</span>
               <div className="inline-flex rounded overflow-hidden border border-slate-300 dark:border-slate-700">
@@ -326,13 +326,13 @@ function DirField({
           className="flex-1 truncate text-sm text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded px-2 py-1.5"
           title={value ?? "—"}
         >
-          {value ?? "(nicht gesetzt)"}
+          {value ?? "(not set)"}
         </span>
         <button
           className="px-2 py-1.5 rounded bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-xs"
           onClick={onPick}
         >
-          Wählen…
+          Choose…
         </button>
         {value && (
           <button

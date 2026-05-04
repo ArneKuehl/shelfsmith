@@ -105,40 +105,40 @@ export function LibraryMissingTable({ clusters, entries, onSelectCluster }: Prop
       <div className="px-4 py-2 border-b border-slate-200 dark:border-slate-800 flex items-center gap-3">
         <input
           type="text"
-          placeholder="Filter Autor / Serie…"
+          placeholder="Filter author / series…"
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
           className="text-xs bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded px-2 py-1.5 w-64"
         />
         <span className="text-xs text-slate-500">
-          {sorted.length} Serie(n) mit Lücken
+          {sorted.length} series with gaps
         </span>
       </div>
       <div className="flex-1 overflow-auto">
         {sorted.length === 0 ? (
           <div className="p-8 text-center text-sm text-slate-500">
-            Keine Serien mit fehlenden Bänden.
+            No series with missing volumes.
           </div>
         ) : (
           <table className="w-full text-sm">
             <thead className="sticky top-0 bg-slate-50 dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 text-xs uppercase tracking-wider text-slate-600 dark:text-slate-400">
               <tr>
                 <th className="text-left px-3 py-2 cursor-pointer select-none" onClick={() => onHeader("author")}>
-                  Autor{arrow("author")}
+                  Author{arrow("author")}
                 </th>
                 <th className="text-left px-3 py-2 cursor-pointer select-none" onClick={() => onHeader("series")}>
-                  Serie{arrow("series")}
+                  Series{arrow("series")}
                 </th>
                 <th className="text-right px-3 py-2 cursor-pointer select-none" onClick={() => onHeader("have")}>
-                  Vorhanden{arrow("have")}
+                  Have{arrow("have")}
                 </th>
                 <th className="text-right px-3 py-2 cursor-pointer select-none" onClick={() => onHeader("max")}>
-                  Max. Band{arrow("max")}
+                  Max. Vol.{arrow("max")}
                 </th>
                 <th className="text-right px-3 py-2 cursor-pointer select-none" onClick={() => onHeader("missing")}>
-                  Fehlend{arrow("missing")}
+                  Missing{arrow("missing")}
                 </th>
-                <th className="text-left px-3 py-2">Fehlende Bände</th>
+                <th className="text-left px-3 py-2">Missing volumes</th>
               </tr>
             </thead>
             <tbody>
@@ -152,7 +152,7 @@ export function LibraryMissingTable({ clusters, entries, onSelectCluster }: Prop
                     {r.cluster.canonicalAuthor}
                   </td>
                   <td className="px-3 py-1.5 text-slate-800 dark:text-slate-200">
-                    {r.cluster.canonicalSeries || "(Ohne Serie)"}
+                    {r.cluster.canonicalSeries || "(No series)"}
                   </td>
                   <td className="px-3 py-1.5 text-right tabular-nums text-slate-700 dark:text-slate-300">
                     {r.have}

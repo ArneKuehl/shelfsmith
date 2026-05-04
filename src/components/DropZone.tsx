@@ -37,16 +37,16 @@ export function DropZone() {
   if (entries.length > 0) {
     return (
       <div className="px-4 py-2 text-xs text-slate-600 dark:text-slate-400 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between gap-2">
-        <span>{entries.length} Datei(en) geladen — weiter Dateien droppen oder hinzufügen</span>
+        <span>{entries.length} file(s) loaded — drop or add more files</span>
         <div className="flex items-center gap-2">
-          <button className="btn-ghost" onClick={pickFiles}>+ Dateien hinzufügen</button>
+          <button className="btn-ghost" onClick={pickFiles}>+ Add files</button>
           <button
             className="btn-clear"
             onClick={() => {
-              if (confirm("Liste leeren? Alle geladenen Dateien werden entfernt.")) clearAll();
+              if (confirm("Clear list? All loaded files will be removed.")) clearAll();
             }}
           >
-            Liste leeren
+            Clear list
           </button>
         </div>
         <style>{btnCss}</style>
@@ -60,11 +60,11 @@ export function DropZone() {
         hover ? "border-blue-500 bg-blue-500/10" : "border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50"
       }`}
     >
-      <div className="text-2xl font-semibold mb-2">Dateien hierher ziehen</div>
+      <div className="text-2xl font-semibold mb-2">Drop files here</div>
       <div className="text-sm text-slate-600 dark:text-slate-400 mb-6">
-        Unterstützt: .epub, .pdf, .mobi, .azw3
+        Supported: .epub, .pdf, .mobi, .azw3
       </div>
-      <button className="btn-primary" onClick={pickFiles}>Dateien auswählen…</button>
+      <button className="btn-primary" onClick={pickFiles}>Select files…</button>
       <style>{btnCss}</style>
     </div>
   );

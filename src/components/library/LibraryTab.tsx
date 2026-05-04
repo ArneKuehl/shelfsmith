@@ -132,7 +132,7 @@ export function LibraryTab() {
           const fileName = basename(filePath);
           const ext = extension(fileName).toLowerCase();
           if (!ALLOWED_EXTENSIONS.has(ext)) {
-            setError(`Nicht unterstütztes Format: ${ext}`);
+            setError(`Unsupported format: ${ext}`);
             return;
           }
           handleDrop(filePath, fileName, ext);
@@ -222,11 +222,11 @@ export function LibraryTab() {
   };
 
   const resolveTargetDir = (): { dir: string; warning?: string } => {
-    if (!selectedCluster) return { dir: "", warning: "Keine Serie ausgewählt" };
+    if (!selectedCluster) return { dir: "", warning: "No series selected" };
     const clusterEntries = entries.filter((e) => e.clusterId === selectedCluster);
     const dirs = new Set(clusterEntries.map((e) => e.dir));
     if (dirs.size === 1) return { dir: [...dirs][0] };
-    if (dirs.size === 0) return { dir: "", warning: "Kein Zielverzeichnis ermittelbar" };
+    if (dirs.size === 0) return { dir: "", warning: "Cannot determine target directory" };
     const counts = new Map<string, number>();
     for (const e of clusterEntries) counts.set(e.dir, (counts.get(e.dir) ?? 0) + 1);
     let bestDir = "";
@@ -237,7 +237,7 @@ export function LibraryTab() {
         bestCount = c;
       }
     }
-    return { dir: bestDir, warning: `Dateien in ${dirs.size} verschiedenen Verzeichnissen` };
+    return { dir: bestDir, warning: `Files in ${dirs.size} different directories` };
   };
 
   const dropTargetInfo = useMemo(() => resolveTargetDir(), [selectedCluster, entries]);
@@ -287,7 +287,7 @@ export function LibraryTab() {
         setDropState(null);
         await rescanPreservingCluster();
       } else {
-        setError(r.error ?? "Einsortieren fehlgeschlagen");
+        setError(r.error ?? "Failed to add to library");
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -312,7 +312,7 @@ export function LibraryTab() {
       setEntries(result.entries);
       setClusters(result.clusters);
       if (result.entries.length === 0) {
-        setError("Keine unterstützten Dateien gefunden.");
+        setError("No supported files found.");
       } else {
         // Background: read EPUB OPF metadata so mismatch badges can light up.
         loadAndApplyEpubMeta().catch(() => {});
@@ -431,7 +431,7 @@ export function LibraryTab() {
         if (total - moved <= 1) {
           updateEntry(entry.id, {
             status: "error",
-            error: "Übersprungen — letzte Kopie dieses Bandes",
+            error: "Skipped — last copy of this volume",
           });
           continue;
         }
@@ -527,7 +527,7 @@ export function LibraryTab() {
       if (r.ok) {
         await rescanPreservingCluster();
       } else {
-        updateEntry(entry.id, { status: "error", error: r.error ?? "Löschen fehlgeschlagen" });
+        updateEntry(entry.id, { status: "error", error: r.error ?? "Delete failed" });
       }
     } catch (e) {
       updateEntry(entry.id, {
@@ -622,20 +622,20 @@ export function LibraryTab() {
       <div className="border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 px-4 py-3 flex flex-wrap items-end gap-3">
         <div className="flex-1 min-w-[16rem]">
           <label className="block text-xs uppercase tracking-wider text-slate-600 dark:text-slate-400 mb-1">
-            Quellordner
+            Source folder
           </label>
           <div className="flex items-center gap-2">
             <span
               className="flex-1 truncate text-sm text-slate-800 dark:text-slate-200 bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded px-2 py-1.5"
               title={folder ?? "—"}
             >
-              {folder ?? "(kein Ordner gewählt)"}
+              {folder ?? "(no folder selected)"}
             </span>
             <button
               className="px-2 py-1.5 rounded bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-xs"
               onClick={pickFolder}
             >
-              Ordner wählen…
+              Choose folder…
             </button>
           </div>
         </div>
@@ -645,7 +645,7 @@ export function LibraryTab() {
             checked={recursive}
             onChange={(e) => setRecursive(e.target.checked)}
           />
-          Rekursiv
+          Recursive
         </label>
         <label className="flex items-center gap-2 text-sm pb-2">
           <input
@@ -656,14 +656,14 @@ export function LibraryTab() {
               if (entries.length > 0) setTimeout(runReanalyze, 0);
             }}
           />
-          Title-Case
+          Title case
         </label>
         {scanning ? (
           <button
             className="px-4 py-2 rounded-md bg-rose-600 hover:bg-rose-700 text-white text-sm font-medium"
             onClick={() => abortRef.current?.abort()}
           >
-            Abbrechen
+            Cancel
           </button>
         ) : (
           <button
@@ -671,14 +671,14 @@ export function LibraryTab() {
             onClick={startScan}
             disabled={!folder}
           >
-            Scannen & Analysieren
+            Scan & Analyze
           </button>
         )}
         {entries.length > 0 && (
           <span className="text-xs text-slate-500 pb-2 self-end">
-            {entries.length} Dateien, {clusterCount} Cluster, {issueCount} Issues
+            {entries.length} files, {clusterCount} clusters, {issueCount} issues
             {metaProgress
-              ? ` · Lese EPUB-Meta ${metaProgress.done}/${metaProgress.total}`
+              ? ` · Reading EPUB metadata ${metaProgress.done}/${metaProgress.total}`
               : ""}
           </span>
         )}
@@ -702,7 +702,7 @@ export function LibraryTab() {
               }`}
               onClick={() => setView("missing")}
             >
-              Lücken
+              Gaps
             </button>
           </div>
         )}

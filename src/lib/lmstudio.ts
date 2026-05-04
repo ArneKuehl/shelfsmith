@@ -3,15 +3,15 @@ import type { FilenameDecomposition, LLMResponse } from "../types";
 
 export type DecomposeResult = FilenameDecomposition & { prompt: string; raw: string };
 
-const SYSTEM_PROMPT = `Du bist ein Experte für Buchserien-Metadaten.
-Du analysierst Dateinamen und extrahierst strukturierte Informationen.
-Antworte AUSSCHLIESSLICH mit einem validen JSON-Objekt nach dem vorgegebenen Schema.`;
+const SYSTEM_PROMPT = `You are an expert in book series metadata.
+You analyze filenames and extract structured information.
+Respond EXCLUSIVELY with a valid JSON object following the provided schema.`;
 
 const SCHEMA = {
   type: "object",
   properties: {
-    author: { type: "string", description: "Autor im Format 'Nachname Vorname'" },
-    series: { type: "string", description: "Name der Buchreihe" },
+    author: { type: "string", description: "Author in the format 'Last name First name'" },
+    series: { type: "string", description: "Name of the book series" },
     files: {
       type: "array",
       items: {
@@ -33,18 +33,18 @@ const SCHEMA = {
 
 function buildUserPrompt(filenames: string[]): string {
   const list = filenames.map((n, i) => `${i + 1}. "${n}"`).join("\n");
-  return `Die folgenden Dateien gehören zur selben Buchserie.
-Analysiere die Namen IM ZUSAMMENHANG und extrahiere:
-- "author": Autor im Format "Nachname Vorname"
-- "series": Name der Buchreihe (einheitlich für alle Dateien)
-- pro Datei:
-  - "volume": Bandnummer als Zahl (Integer oder Dezimal wie 0, 0.5, 8.5), null wenn nicht erkennbar.
-    Bei Sammelbänden/Omnibus (z.B. "Bände 1-3") die Startnummer (1).
-    Prequels/Vorgeschichten (z.B. "Band 0") als 0; Zwischenbände (z.B. "Band 8.5") als Dezimalzahl.
-  - "volumeEnd": bei Sammelbänden die Endnummer (z.B. 3); bei Einzelbänden null.
-  - "title": Einzeltitel, null wenn nicht erkennbar.
+  return `The following files belong to the same book series.
+Analyze the names IN CONTEXT and extract:
+- "author": Author in the format "Last name First name"
+- "series": Name of the book series (consistent across all files)
+- per file:
+  - "volume": Volume number as a number (integer or decimal like 0, 0.5, 8.5), null if not recognizable.
+    For collections/omnibus (e.g. "Volumes 1-3") use the start number (1).
+    Prequels/backstories (e.g. "Volume 0") as 0; in-between volumes (e.g. "Volume 8.5") as decimal.
+  - "volumeEnd": for collections the end number (e.g. 3); for single volumes null.
+  - "title": Individual title, null if not recognizable.
 
-Dateiliste:
+File list:
 ${list}`;
 }
 
@@ -82,7 +82,7 @@ export async function analyze(
     });
   } catch (e) {
     throw new LMStudioError(
-      `LM Studio nicht erreichbar unter ${baseUrl}. Läuft der Server?`,
+      `LM Studio not reachable at ${baseUrl}. Is the server running?`,
       e,
     );
   }
@@ -93,17 +93,17 @@ export async function analyze(
   const data = await res.json();
   const content = data?.choices?.[0]?.message?.content;
   if (typeof content !== "string") {
-    throw new LMStudioError("Unerwartete LM-Studio-Antwort (kein content).");
+    throw new LMStudioError("Unexpected LM Studio response (no content).");
   }
   const cleaned = stripFences(content);
   let parsed: LLMResponse;
   try {
     parsed = JSON.parse(cleaned);
   } catch (e) {
-    throw new LMStudioError(`Antwort ist kein valides JSON: ${cleaned.slice(0, 200)}`, e);
+    throw new LMStudioError(`Response is not valid JSON: ${cleaned.slice(0, 200)}`, e);
   }
   if (!parsed?.files || !Array.isArray(parsed.files)) {
-    throw new LMStudioError("Antwort enthält kein 'files'-Array.");
+    throw new LMStudioError("Response contains no 'files' array.");
   }
   return parsed;
 }
@@ -124,9 +124,9 @@ const DECOMPOSE_SCHEMA = {
   additionalProperties: false,
 };
 
-const DECOMPOSE_SYSTEM = `Du bist ein Experte für Buchserien-Metadaten.
-Du analysierst einen einzelnen Dateinamen und extrahierst Autor, Serie, Bandnummer und Einzeltitel.
-Wenn ein Wert nicht erkennbar ist, gib null zurück. Antworte AUSSCHLIESSLICH als JSON nach dem Schema.`;
+const DECOMPOSE_SYSTEM = `You are an expert in book series metadata.
+You analyze a single filename and extract author, series, volume number, and individual title.
+If a value cannot be determined, return null. Respond EXCLUSIVELY as JSON following the schema.`;
 
 /**
  * Asks the local LLM to decompose a single filename into author/series/title/volume.
@@ -139,14 +139,14 @@ export async function decomposeFilename(
   signal?: AbortSignal,
 ): Promise<DecomposeResult> {
   const url = baseUrl.replace(/\/$/, "") + "/v1/chat/completions";
-  const userPrompt = `Zerlege den folgenden Dateinamen:
+  const userPrompt = `Decompose the following filename:
 "${filename}"
 
-Gib zurück:
-- "author": Autor im Format "Nachname Vorname" (oder null)
-- "series": Name der Buchreihe (oder null)
-- "title": Einzeltitel des Bandes (oder null)
-- "volume": Bandnummer als Zahl, auch 0 (Prequel) oder Dezimalzahlen wie 0.5 / 8.5 für Zwischenbände (oder null)`;
+Return:
+- "author": Author in the format "Last name First name" (or null)
+- "series": Name of the book series (or null)
+- "title": Individual title of the volume (or null)
+- "volume": Volume number as a number, including 0 (prequel) or decimals like 0.5 / 8.5 for in-between volumes (or null)`;
   let res: Response;
   try {
     res = await tauriFetch(url, {
@@ -167,7 +167,7 @@ Gib zurück:
       }),
     });
   } catch (e) {
-    throw new LMStudioError(`LM Studio nicht erreichbar unter ${baseUrl}.`, e);
+    throw new LMStudioError(`LM Studio not reachable at ${baseUrl}.`, e);
   }
   if (!res.ok) {
     const text = await res.text().catch(() => "");
@@ -176,14 +176,14 @@ Gib zurück:
   const data = await res.json();
   const content = data?.choices?.[0]?.message?.content;
   if (typeof content !== "string") {
-    throw new LMStudioError("Unerwartete LM-Studio-Antwort (kein content).");
+    throw new LMStudioError("Unexpected LM Studio response (no content).");
   }
   const cleaned = stripFences(content);
   let parsed: FilenameDecomposition;
   try {
     parsed = JSON.parse(cleaned);
   } catch (e) {
-    throw new LMStudioError(`Antwort ist kein valides JSON: ${cleaned.slice(0, 200)}`, e);
+    throw new LMStudioError(`Response is not valid JSON: ${cleaned.slice(0, 200)}`, e);
   }
   return {
     author: typeof parsed.author === "string" && parsed.author.trim() ? parsed.author.trim() : null,
@@ -232,7 +232,7 @@ export async function checkAvailableDetailed(
       ok: false,
       url,
       error: aborted
-        ? `Timeout nach ${timeoutMs} ms`
+        ? `Timeout after ${timeoutMs} ms`
         : e instanceof Error
           ? `${e.name}: ${e.message}`
           : String(e),

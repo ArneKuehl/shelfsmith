@@ -201,20 +201,20 @@ function detectIssues(
   for (const e of entries) {
     // unparsable
     if (!e.author && !e.series) {
-      e.issues.push({ kind: "unparsable", message: "Dateiname konnte nicht geparst werden" });
+      e.issues.push({ kind: "unparsable", message: "Filename could not be parsed" });
       continue;
     }
 
     // orphan
     if (!e.series) {
-      e.issues.push({ kind: "orphan", message: "Keine Serie erkannt" });
+      e.issues.push({ kind: "orphan", message: "No series detected" });
     }
 
     // author-variant
     if (e.author && e.author !== canonicalAuthor) {
       e.issues.push({
         kind: "author-variant",
-        message: `Autor „${e.author}" weicht von „${canonicalAuthor}" ab`,
+        message: `Author "${e.author}" differs from "${canonicalAuthor}"`,
       });
     }
 
@@ -222,7 +222,7 @@ function detectIssues(
     if (e.series && e.series !== canonicalSeries) {
       e.issues.push({
         kind: "series-variant",
-        message: `Serie „${e.series}" weicht von „${canonicalSeries}" ab`,
+        message: `Series "${e.series}" differs from "${canonicalSeries}"`,
       });
     }
 
@@ -233,13 +233,13 @@ function detectIssues(
       if (e.author === canonicalAuthor && canonicalAuthor !== tcAuthor) {
         e.issues.push({
           kind: "title-case",
-          message: `Autor „${canonicalAuthor}" → „${tcAuthor}"`,
+          message: `Author "${canonicalAuthor}" → "${tcAuthor}"`,
         });
       }
       if (e.series === canonicalSeries && canonicalSeries !== tcSeries) {
         e.issues.push({
           kind: "title-case",
-          message: `Serie „${canonicalSeries}" → „${tcSeries}"`,
+          message: `Series "${canonicalSeries}" → "${tcSeries}"`,
         });
       }
     }
@@ -248,7 +248,7 @@ function detectIssues(
     if (e.volumeEnd !== null && e.volumeEnd > (e.volume ?? 0)) {
       e.issues.push({
         kind: "range-or-omnibus",
-        message: `Band-Range (${e.volume}–${e.volumeEnd}) — Omnibus/Sammelband?`,
+        message: `Volume range (${e.volume}–${e.volumeEnd}) — omnibus/collection?`,
       });
     }
 
@@ -256,14 +256,14 @@ function detectIssues(
     if (e.extension.toLowerCase() !== ".epub") {
       e.issues.push({
         kind: "format-preference",
-        message: `Format ${e.extension} — EPUB ist bevorzugt`,
+        message: `Format ${e.extension} — EPUB is preferred`,
       });
     }
 
     // duplicate-volume — (alternative) tag in original name
     if (ALTERNATIVE_TAG.test(e.originalName)) {
       ALTERNATIVE_TAG.lastIndex = 0;
-      e.issues.push({ kind: "duplicate-volume", message: "Alternative-Datei" });
+      e.issues.push({ kind: "duplicate-volume", message: "Duplicate file" });
     }
 
     // metadata-mismatch — EPUB-OPF differs from cleaned filename data.
@@ -278,25 +278,25 @@ function detectIssues(
       const diffs: string[] = [];
       const norm = (s: string | null | undefined) => (s ?? "").trim().toLowerCase();
       if (e.title !== null && norm(e.epubMeta.title) !== norm(e.title)) {
-        diffs.push(`Titel: „${e.epubMeta.title ?? "—"}" → „${e.title}"`);
+        diffs.push(`Title: "${e.epubMeta.title ?? "—"}" → "${e.title}"`);
       }
       if (norm(e.epubMeta.author) !== norm(expectedAuthor)) {
-        diffs.push(`Autor: „${e.epubMeta.author ?? "—"}" → „${expectedAuthor}"`);
+        diffs.push(`Author: "${e.epubMeta.author ?? "—"}" → "${expectedAuthor}"`);
       }
       if (norm(e.epubMeta.series) !== norm(expectedSeries)) {
-        diffs.push(`Serie: „${e.epubMeta.series ?? "—"}" → „${expectedSeries}"`);
+        diffs.push(`Series: "${e.epubMeta.series ?? "—"}" → "${expectedSeries}"`);
       }
       if (
         e.volume !== null &&
         e.volumeEnd === null &&
         e.epubMeta.series_index !== e.volume
       ) {
-        diffs.push(`Band: ${e.epubMeta.series_index ?? "—"} → ${e.volume}`);
+        diffs.push(`Volume: ${e.epubMeta.series_index ?? "—"} → ${e.volume}`);
       }
       if (diffs.length > 0) {
         e.issues.push({
           kind: "metadata-mismatch",
-          message: `EPUB-Metadaten weichen ab: ${diffs.join("; ")}`,
+          message: `EPUB metadata differs: ${diffs.join("; ")}`,
         });
       }
     }
@@ -332,7 +332,7 @@ function detectIssues(
         const otherNames = others.map((o) => o.originalName).join(", ");
         e.issues.push({
           kind: "duplicate-volume",
-          message: `Band ${e.volume} existiert auch als: ${otherNames}`,
+          message: `Volume ${e.volume} also exists as: ${otherNames}`,
         });
       }
     }
@@ -350,7 +350,7 @@ function detectIssues(
       .join(", ");
     e.issues.push({
       kind: "duplicate-volume",
-      message: `Band ${e.volume} ist in Omnibus enthalten: ${covering}`,
+      message: `Volume ${e.volume} is included in omnibus: ${covering}`,
     });
   }
 
@@ -365,7 +365,7 @@ function detectIssues(
           if (!existing) {
             e.issues.push({
               kind: "format-duplicate",
-              message: `Nicht-EPUB-Version — EPUB-Variante vorhanden`,
+              message: `Non-EPUB version — EPUB variant exists`,
             });
           }
         }
@@ -393,7 +393,7 @@ function detectIssues(
         if (e.volume !== null) {
           e.issues.push({
             kind: "volume-gap",
-            message: `Fehlende Bände: ${missing.join(", ")}`,
+            message: `Missing volumes: ${missing.join(", ")}`,
           });
           break;
         }
@@ -413,7 +413,7 @@ function detectIssues(
         if (intPart.length < expectedWidth) {
           e.issues.push({
             kind: "unpadded-volume",
-            message: `Band-Padding inkonsistent (${intPart} → ${intPart.padStart(expectedWidth, "0")})`,
+            message: `Volume padding inconsistent (${intPart} → ${intPart.padStart(expectedWidth, "0")})`,
           });
         }
       }

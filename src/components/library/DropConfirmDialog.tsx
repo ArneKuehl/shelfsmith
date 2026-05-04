@@ -29,7 +29,7 @@ export type DropConfirmDialogProps = {
 const SOURCE_LABELS: Record<DropSource, string> = {
   metadata: "EPUB-Meta",
   llm: "LLM",
-  filename: "Dateiname",
+  filename: "Filename",
 };
 
 const SOURCE_COLORS: Record<DropSource, string> = {
@@ -76,7 +76,7 @@ export function DropConfirmDialog({
           {/* Header */}
           <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200 dark:border-slate-700">
             <span className="text-sm font-medium text-slate-700 dark:text-slate-200">
-              Datei einsortieren
+              Add file to library
             </span>
             <button
               type="button"
@@ -91,7 +91,7 @@ export function DropConfirmDialog({
             {/* Original file name */}
             <div>
               <label className="block text-xs uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1 font-medium">
-                Originaldatei
+                Original file
               </label>
               <button
                 type="button"
@@ -106,12 +106,12 @@ export function DropConfirmDialog({
             {/* Source badge + LLM info icon */}
             <div className="flex items-center gap-2">
               <label className="text-xs uppercase tracking-wider text-slate-500 dark:text-slate-400 font-medium">
-                Quelle
+                Source
               </label>
               <button
                 type="button"
                 className={`px-1.5 py-0.5 rounded text-xs cursor-pointer hover:opacity-75 active:scale-95 transition-opacity ${SOURCE_COLORS[source]}`}
-                title="Klick: LLM neu befragen"
+                title="Click to re-query LLM"
                 onClick={onReQueryLlm}
                 disabled={busy}
               >
@@ -121,7 +121,7 @@ export function DropConfirmDialog({
                 <button
                   type="button"
                   className="w-5 h-5 flex items-center justify-center rounded-full text-slate-400 hover:text-violet-600 dark:hover:text-violet-400 hover:bg-violet-50 dark:hover:bg-violet-900/40 transition-colors flex-shrink-0"
-                  title="LLM-Prompt und Antwort anzeigen"
+                  title="Show LLM prompt and response"
                   onClick={() => setShowLlmInfo(true)}
                 >
                   <svg viewBox="0 0 16 16" fill="currentColor" className="w-3.5 h-3.5">
@@ -130,14 +130,14 @@ export function DropConfirmDialog({
                 </button>
               )}
               {busy && (
-                <span className="text-amber-600 dark:text-amber-400 text-xs">Abfrage läuft…</span>
+                <span className="text-amber-600 dark:text-amber-400 text-xs">Querying…</span>
               )}
             </div>
 
             {/* Editable fields */}
             <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-2 items-center">
               <label className="text-xs text-slate-500 dark:text-slate-400 font-medium text-right">
-                Band
+                Volume
               </label>
               <div className="flex items-center gap-2">
                 <input
@@ -150,7 +150,7 @@ export function DropConfirmDialog({
                     onVolumeChange(v === "" ? null : Number(v));
                   }}
                 />
-                <span className="text-xs text-slate-400">bis</span>
+                <span className="text-xs text-slate-400">to</span>
                 <input
                   type="number"
                   step="any"
@@ -165,7 +165,7 @@ export function DropConfirmDialog({
               </div>
 
               <label className="text-xs text-slate-500 dark:text-slate-400 font-medium text-right">
-                Titel
+                Title
               </label>
               <input
                 type="text"
@@ -178,7 +178,7 @@ export function DropConfirmDialog({
             {/* Preview */}
             <div>
               <label className="block text-xs uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1 font-medium">
-                Neuer Dateiname
+                New filename
               </label>
               <div className="font-mono text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded px-3 py-2 break-all text-slate-700 dark:text-slate-300">
                 {proposedName}
@@ -187,7 +187,7 @@ export function DropConfirmDialog({
 
             <div>
               <label className="block text-xs uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1 font-medium">
-                Zielverzeichnis
+                Target directory
               </label>
               <div className="text-xs text-slate-600 dark:text-slate-400 truncate" title={targetDir}>
                 {targetDir}
@@ -205,14 +205,14 @@ export function DropConfirmDialog({
                 onClick={onCancel}
                 className="px-4 py-2 rounded-md bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-sm"
               >
-                Abbrechen
+                Cancel
               </button>
               <button
                 onClick={onConfirm}
                 disabled={busy}
                 className="px-4 py-2 rounded-md bg-blue-600 hover:bg-blue-700 disabled:bg-slate-300 dark:disabled:bg-slate-700 disabled:cursor-not-allowed text-white text-sm font-medium"
               >
-                Einsortieren
+                Add to library
               </button>
             </div>
           </div>

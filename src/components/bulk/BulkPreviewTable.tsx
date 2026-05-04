@@ -116,7 +116,7 @@ export function BulkPreviewTable({
           if (showHeader) lastSeriesKey = key;
           return (
             <div key={e.id}>
-              {showHeader && <SeriesGroupHeader label={e.series || "(ohne Serie)"} />}
+              {showHeader && <SeriesGroupHeader label={e.series || "(no series)"} />}
               <Row
                 entry={e}
                 onChange={(patch) => update(e.id, patch, true)}
@@ -138,11 +138,11 @@ export function BulkPreviewTable({
             scrollerRef.current?.scrollTo({ top: 0, behavior: "smooth" })
           }
           className="absolute bottom-4 left-4 z-10 px-3 py-2 rounded-full shadow-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 text-sm flex items-center gap-1.5"
-          title="Zum Anfang"
-          aria-label="Zum Anfang der Liste"
+          title="Scroll to top"
+          aria-label="Back to top"
         >
           <span aria-hidden>↑</span>
-          <span>Anfang</span>
+          <span>Top</span>
         </button>
       )}
     </div>
@@ -231,16 +231,16 @@ function Row({
       )}
       {/* Row 1: editable fields */}
       <div className="flex items-end gap-2">
-        <Field label="Autor" className="flex-1 min-w-[14rem]">
+        <Field label="Author" className="flex-1 min-w-[14rem]">
           <input
             className="cell-input"
             value={e.author}
-            placeholder="Nachname, Vorname"
+            placeholder="Last name, First name"
             onChange={(ev) => onChange({ author: ev.target.value })}
             {...editProps}
           />
         </Field>
-        <Field label="Serie" className="flex-1 min-w-[12rem]">
+        <Field label="Series" className="flex-1 min-w-[12rem]">
           <input
             className="cell-input"
             value={e.series}
@@ -249,7 +249,7 @@ function Row({
             {...editProps}
           />
         </Field>
-        <Field label="Band" className="w-20">
+        <Field label="Volume" className="w-20">
           <VolumeInput
             value={e.volume}
             onCommit={(v) => onChange({ volume: v })}
@@ -257,7 +257,7 @@ function Row({
             onEditEnd={onEditEnd}
           />
         </Field>
-        <Field label="Bis" className="w-20">
+        <Field label="To" className="w-20">
           <VolumeInput
             value={e.volumeEnd}
             onCommit={(v) => onChange({ volumeEnd: v })}
@@ -265,7 +265,7 @@ function Row({
             onEditEnd={onEditEnd}
           />
         </Field>
-        <Field label="Titel" className="flex-[2] min-w-[16rem]">
+        <Field label="Title" className="flex-[2] min-w-[16rem]">
           <input
             className="cell-input"
             value={e.title ?? ""}
@@ -300,7 +300,7 @@ function Row({
         <button
           type="button"
           className={`px-1.5 py-0.5 rounded text-xs cursor-pointer hover:opacity-75 active:scale-95 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed ${sourceColor(e.source)}`}
-          title={`Quelle: ${sourceLabel(e.source)} · Konfidenz: ${e.confidence} · Klick: LLM neu befragen`}
+          title={`Source: ${sourceLabel(e.source)} · Confidence: ${e.confidence} · Click to re-query LLM`}
           onClick={onQueryLlm}
           disabled={e.status === "scanning" || e.status === "renaming"}
         >
@@ -310,7 +310,7 @@ function Row({
           <button
             type="button"
             className="w-5 h-5 flex items-center justify-center rounded-full text-slate-400 hover:text-violet-600 dark:hover:text-violet-400 hover:bg-violet-50 dark:hover:bg-violet-900/40 transition-colors flex-shrink-0"
-            title="LLM-Prompt und Antwort anzeigen"
+            title="Show LLM prompt and response"
             onClick={() => setShowLlmInfo(true)}
           >
             <svg viewBox="0 0 16 16" fill="currentColor" className="w-3.5 h-3.5">
@@ -328,14 +328,14 @@ function Row({
           className="action-btn bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-300 dark:disabled:bg-slate-700 disabled:cursor-not-allowed"
           onClick={onRename}
           disabled={!renamable}
-          title={renamable ? "Umbenennen" : "Autor und Serie erforderlich"}
+          title={renamable ? "Rename" : "Author and series required"}
         >
           ✓
         </button>
         <button
           className="action-btn bg-rose-600 hover:bg-rose-500"
           onClick={onRemove}
-          title="Aus Liste entfernen"
+          title="Remove from list"
         >
           ✗
         </button>
@@ -372,7 +372,7 @@ function sourceLabel(s: BulkEntry["source"]): string {
     case "web":
       return "Web";
     case "manual":
-      return "manuell";
+      return "manual";
     case "none":
       return "—";
   }

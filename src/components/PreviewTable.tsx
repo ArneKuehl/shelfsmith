@@ -61,10 +61,10 @@ export function PreviewTable() {
         <thead className="text-xs uppercase text-slate-600 dark:text-slate-400 sticky top-0 bg-white dark:bg-slate-950">
           <tr>
             <th className="text-left px-2 py-2"></th>
-            <ResizableTh label="Altname" onResize={(e) => startResize("oldName", e)} />
-            <ResizableTh label="Band(-Range)" onResize={(e) => startResize("volume", e)} />
-            <ResizableTh label="Titel" onResize={(e) => startResize("title", e)} />
-            <ResizableTh label="Neuname" onResize={(e) => startResize("newName", e)} />
+            <ResizableTh label="Original name" onResize={(e) => startResize("oldName", e)} />
+            <ResizableTh label="Volume (range)" onResize={(e) => startResize("volume", e)} />
+            <ResizableTh label="Title" onResize={(e) => startResize("title", e)} />
+            <ResizableTh label="New name" onResize={(e) => startResize("newName", e)} />
             <th className="text-left px-2 py-2">Status</th>
             <th></th>
           </tr>
@@ -104,7 +104,7 @@ function ResizableTh({
         onMouseDown={onResize}
         onDoubleClick={(e) => e.stopPropagation()}
         className="resizer"
-        title="Spaltenbreite ziehen"
+        title="Drag to resize column"
       />
     </th>
   );
@@ -133,9 +133,9 @@ function Row({
   const bad = (hasCollision || hasInvalidName) && e.selected;
   const rowBg = bad ? "bg-rose-950/40" : "bg-slate-50 dark:bg-slate-900";
   const rowTooltip = hasCollision
-    ? "Kollision: anderer Eintrag bekommt denselben Namen"
+    ? "Collision: another entry will get the same name"
     : hasInvalidName
-      ? "Ungültiger Dateiname"
+      ? "Invalid filename"
       : "";
 
   return (
@@ -172,7 +172,7 @@ function Row({
             className="cell-input w-12 text-center"
             value={e.volumeEnd ?? ""}
             placeholder="—"
-            title="Endband bei Sammelband, sonst leer"
+            title="End volume for omnibus, otherwise empty"
             onChange={(ev) => {
               const v = ev.target.value.trim().replace(",", ".");
               if (v === "") return onChangeVolumeEnd(null);
@@ -206,7 +206,7 @@ function Row({
         <button
           className="text-slate-500 hover:text-rose-600 dark:text-rose-400"
           onClick={onRemove}
-          title="Entfernen"
+          title="Remove"
         >
           ×
         </button>

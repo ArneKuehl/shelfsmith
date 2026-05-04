@@ -9,7 +9,7 @@ export function LlmInfoPopup({ prompt, raw, onClose }: { prompt: string; raw: st
         onClick={(ev) => ev.stopPropagation()}
       >
         <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200 dark:border-slate-700">
-          <span className="text-sm font-medium text-slate-700 dark:text-slate-200">LLM-Details</span>
+          <span className="text-sm font-medium text-slate-700 dark:text-slate-200">LLM Details</span>
           <button
             type="button"
             className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-lg leading-none"
@@ -24,7 +24,7 @@ export function LlmInfoPopup({ prompt, raw, onClose }: { prompt: string; raw: st
             <pre className="font-mono text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded p-3 whitespace-pre-wrap break-words text-slate-700 dark:text-slate-300">{prompt}</pre>
           </section>
           <section>
-            <h3 className="text-xs uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5 font-medium">LLM-Antwort (roh)</h3>
+            <h3 className="text-xs uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5 font-medium">LLM Response (raw)</h3>
             <pre className="font-mono text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded p-3 whitespace-pre-wrap break-words text-slate-700 dark:text-slate-300">{raw}</pre>
           </section>
         </div>
