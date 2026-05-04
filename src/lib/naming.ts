@@ -48,6 +48,11 @@ export function buildProposedName(
 ): string {
   const author = sanitize(formatAuthor(meta.author));
   const series = sanitize(meta.series);
+  if (!series) {
+    const title = sanitize(entry.title ?? "");
+    if (!title) return entry.extension;
+    return `${author} - ${title}${entry.extension}`;
+  }
   let name = `${author} - ${series}`;
   if (entry.volume !== null) {
     const start = padVolume(entry.volume, maxVol);

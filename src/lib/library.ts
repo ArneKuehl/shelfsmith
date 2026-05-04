@@ -474,19 +474,26 @@ function buildSuggestions(
 
     // Build the canonical filename first — rename takes priority over move.
     let renameSuggestion: LibrarySuggestion | null = null;
-    if (e.author && e.series) {
+    const hasSeries = !!e.series;
+    const titleOnly = !hasSeries && !!e.title && e.volume === null && e.volumeEnd === null;
+    if (e.author && (hasSeries || titleOnly)) {
       const author = sanitize(formatAuthor(canonAuthor));
-      const series = sanitize(canonSeries);
-      let name = `${author} - ${series}`;
-      if (e.volume !== null) {
-        const start = padVolume(e.volume, maxVol);
-        const end =
-          e.volumeEnd !== null && e.volumeEnd > e.volume
-            ? `-${padVolume(e.volumeEnd, maxVol)}`
-            : "";
-        name += ` (${start}${end})`;
+      let name: string;
+      if (titleOnly) {
+        name = `${author} - ${sanitize(e.title!)}`;
+      } else {
+        const series = sanitize(canonSeries);
+        name = `${author} - ${series}`;
+        if (e.volume !== null) {
+          const start = padVolume(e.volume, maxVol);
+          const end =
+            e.volumeEnd !== null && e.volumeEnd > e.volume
+              ? `-${padVolume(e.volumeEnd, maxVol)}`
+              : "";
+          name += ` (${start}${end})`;
+        }
+        if (e.title) name += ` - ${sanitize(e.title)}`;
       }
-      if (e.title) name += ` - ${sanitize(e.title)}`;
       const proposedName = name + e.extension;
       if (proposedName !== e.originalName) {
         renameSuggestion = {

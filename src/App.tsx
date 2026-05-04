@@ -50,8 +50,16 @@ export default function App() {
 
   const selected = entries.filter((e) => e.selected);
   const collisions = findCollisions(entries, settings);
+  const noSeriesValid =
+    !meta.series &&
+    selected.every(
+      (e) => !!e.title?.trim() && e.volume === null && e.volumeEnd === null,
+    );
   const blocked =
-    selected.length === 0 || collisions.size > 0 || !meta.author || !meta.series;
+    selected.length === 0 ||
+    collisions.size > 0 ||
+    !meta.author ||
+    (!meta.series && !noSeriesValid);
 
   const runAnalyze = async () => {
     if (entries.length === 0) return;
