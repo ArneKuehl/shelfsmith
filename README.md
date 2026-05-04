@@ -42,6 +42,10 @@ Der Bibliothek-Tab nutzt das LLM optional als Fallback, wenn ein Buch keine
 eingebetteten Metadaten hat — kann in den Einstellungen abgeschaltet werden,
 und wird automatisch übersprungen, wenn kein LLM erreichbar ist.
 
+Der Aufräumen-Tab nutzt das LLM als Fallback beim Drag-&-Drop-Import: Wenn die
+EPUB-Metadaten weder Band noch Titel liefern, wird der Dateiname über das LLM
+zerlegt. Das LLM ist für diesen Tab ansonsten nicht erforderlich.
+
 ### 5. App starten
 
 ```bash
@@ -113,11 +117,19 @@ Aktionen:
 - **Rename**: Vereinheitlichung auf die kanonische Schreibweise des Clusters.
 - **Move**: Duplikate/Format-Varianten werden in `_duplicates/` verschoben
   (EPUB hat Vorrang; kein Löschen).
+- **Drag & Drop**: Wenn eine Serie ausgewählt ist, kann eine neue Datei direkt ins
+  Fenster gezogen werden. Die App liest zuerst die eingebetteten Metadaten (EPUB:
+  Band + Titel, PDF: nur Titel); sind beide nicht vorhanden, wird das LLM
+  als Fallback gefragt. Im Bestätigungsdialog lassen sich Band, Bandbereich und
+  Titel korrigieren, Quelle (Metadaten / LLM) und der generierte Dateiname sind
+  sichtbar. Die Datei wird anschließend in den Ordner der Serie verschoben (Move,
+  ggf. Cross-Device-Copy+Delete) und die Übersicht aktualisiert.
 
 1. Quellordner wählen (optional rekursiv).
 2. „Scannen & Analysieren".
 3. Im Cluster-Baum links die gewünschte Serie wählen.
 4. Rechts Issues und Vorschläge prüfen, einzeln oder per Batch anwenden.
+5. Optional: neue Datei per Drag & Drop einsortieren.
 
 ### Einstellungen & Theme
 
@@ -136,7 +148,8 @@ In der Tab-Leiste oben rechts:
 - `src/lib/bulk.ts` — Ordner-Scan + dreistufige Enrichment-Pipeline
 - `src/lib/library.ts` — Aufräumen-Pipeline (Parsing, Clustering, Issue-Erkennung)
 - `src/lib/cluster.ts` — Normalisierung, Fuzzy-Match (Jaro-Winkler), Cluster-Aufbau
-- `src/components/library/` — UI für den Aufräumen-Tab (Tree + Table)
+- `src/components/library/` — UI für den Aufräumen-Tab (Tree + Table + DropConfirmDialog)
+- `src/components/LlmInfoPopup.tsx` — geteilte Modal-Komponente für LLM-Prompt/Response-Anzeige
 - `src/components/SettingsScreen.tsx` — zentrales Einstellungs-Modal
 - `src/lib/naming.ts` — Sanitize, Bandnummer-Padding, `buildProposedName`,
   Sortier-Schlüssel (`normalizeForSort`, `authorSortKey`, `seriesSortKey`)
