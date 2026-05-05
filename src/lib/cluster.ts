@@ -185,6 +185,7 @@ export function buildClusters(
         seriesKey: sKey,
         entryIds: seriesEntries.map((e) => e.id),
         issueCount: 0,
+        formatIssueCount: 0,
         missingVolumes: [],
       };
       clusters.push(cluster);

@@ -63,6 +63,14 @@ export function LibraryTree({ clusters, selectedClusterId, onSelect, filter }: P
                   {c.issueCount}
                 </span>
               )}
+              {c.formatIssueCount > 0 && (
+                <span
+                  className="ml-1 flex-shrink-0 inline-flex items-center justify-center w-5 h-5 rounded-full bg-pink-100 dark:bg-pink-900/60 text-pink-800 dark:text-pink-200 text-[10px] font-bold"
+                  title={`Format issues: ${c.formatIssueCount}`}
+                >
+                  {c.formatIssueCount}
+                </span>
+              )}
               {c.missingVolumes.length > 0 && (
                 <span
                   className="ml-1 flex-shrink-0 inline-flex items-center justify-center w-5 h-5 rounded-full bg-blue-100 dark:bg-blue-900/60 text-blue-700 dark:text-blue-300 text-[10px] font-bold"

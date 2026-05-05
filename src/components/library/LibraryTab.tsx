@@ -610,7 +610,17 @@ export function LibraryTab() {
         (i) =>
           i.kind !== "volume-gap" &&
           i.kind !== "range-or-omnibus" &&
-          i.kind !== "metadata-mismatch",
+          i.kind !== "metadata-mismatch" &&
+          i.kind !== "format-duplicate" &&
+          i.kind !== "format-preference",
+      ).length,
+    0,
+  );
+  const formatIssueCount = entries.reduce(
+    (n, e) =>
+      n +
+      e.issues.filter(
+        (i) => i.kind === "format-duplicate" || i.kind === "format-preference",
       ).length,
     0,
   );
@@ -676,7 +686,7 @@ export function LibraryTab() {
         )}
         {entries.length > 0 && (
           <span className="text-xs text-slate-500 pb-2 self-end">
-            {entries.length} files, {clusterCount} clusters, {issueCount} issues
+            {entries.length} files, {clusterCount} clusters, {issueCount} issues, {formatIssueCount} format issues
             {metaProgress
               ? ` · Reading EPUB metadata ${metaProgress.done}/${metaProgress.total}`
               : ""}

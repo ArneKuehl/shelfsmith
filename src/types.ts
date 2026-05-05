@@ -175,6 +175,7 @@ export type LibraryCluster = {
   seriesKey: string;
   entryIds: string[];
   issueCount: number;
+  formatIssueCount: number;
   missingVolumes: number[];
 };
 

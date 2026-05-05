@@ -178,7 +178,17 @@ export function reanalyze(
           (i) =>
             i.kind !== "volume-gap" &&
             i.kind !== "range-or-omnibus" &&
-            i.kind !== "metadata-mismatch",
+            i.kind !== "metadata-mismatch" &&
+            i.kind !== "format-duplicate" &&
+            i.kind !== "format-preference",
+        ).length,
+      0,
+    );
+    cluster.formatIssueCount = clusterEntries.reduce(
+      (n, e) =>
+        n +
+        e.issues.filter(
+          (i) => i.kind === "format-duplicate" || i.kind === "format-preference",
         ).length,
       0,
     );
