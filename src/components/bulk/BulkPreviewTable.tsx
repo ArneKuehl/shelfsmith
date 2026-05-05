@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { openPath } from "@tauri-apps/plugin-opener";
 import { useStore } from "../../lib/store";
-import { authorSortKey, seriesSortKey, formatAuthor } from "../../lib/naming";
+import { authorSortKey, seriesSortKey, formatAuthor, swapAuthorName } from "../../lib/naming";
 import { decomposeFilename } from "../../lib/lmstudio";
 import { lookupGoogleBooks } from "../../lib/bulk";
 import { LlmInfoPopup } from "../LlmInfoPopup";
@@ -210,6 +210,7 @@ function Row({
   onEditEnd: () => void;
 }) {
   const [showLlmInfo, setShowLlmInfo] = useState(false);
+  const authorRef = useRef<HTMLInputElement>(null);
   const editProps = { onFocus: onEditStart, onBlur: onEditEnd };
   const rowBg =
     e.status === "error"
@@ -218,7 +219,7 @@ function Row({
         ? "bg-slate-50 dark:bg-slate-900/60 border-slate-200 dark:border-slate-800"
         : "bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-800";
 
-  const renamable = !!e.author && !!e.series && e.status !== "renaming";
+  const renamable = !!e.author && (!!e.series || !!e.title) && e.status !== "renaming";
 
   return (
     <div className={`rounded-md border ${rowBg} px-3 py-2`}>
@@ -231,8 +232,15 @@ function Row({
       )}
       {/* Row 1: editable fields */}
       <div className="flex items-end gap-2">
-        <Field label="Author" className="flex-1 min-w-[14rem]">
+        <Field label="Author" className="flex-1 min-w-[14rem]" onLabelClick={() => {
+          onChange({ author: swapAuthorName(e.author) });
+          requestAnimationFrame(() => {
+            authorRef.current?.focus();
+            authorRef.current?.scrollIntoView({ block: "center", behavior: "smooth" });
+          });
+        }}>
           <input
+            ref={authorRef}
             className="cell-input"
             value={e.author}
             placeholder="Last name, First name"
@@ -276,27 +284,28 @@ function Row({
         </Field>
       </div>
 
-      {/* Row 2: original → proposed, source badge, action buttons */}
-      <div className="flex items-center gap-3 mt-2">
-        <button
-          type="button"
-          className="font-mono text-xs text-slate-500 truncate flex-1 min-w-0 text-left hover:underline cursor-pointer"
-          title={e.originalPath}
-          onClick={() => {
-            openPath(e.originalPath).catch((err) => console.error("openPath failed", err));
-          }}
-        >
-          {e.originalName}
-        </button>
-        <span className="text-slate-500 dark:text-slate-600 text-xs">→</span>
-        <span
-          className={`font-mono text-xs truncate flex-[2] min-w-0 ${
-            e.status === "error" ? "text-rose-700 dark:text-rose-300" : "text-emerald-700 dark:text-emerald-300"
-          }`}
-          title={e.proposedName}
-        >
-          {e.proposedName}
-        </span>
+      {/* Row 2: original / proposed names + source badge + action buttons */}
+      <div className="flex items-end gap-3 mt-2">
+        <div className="flex-1 min-w-0 flex flex-col gap-0.5">
+          <button
+            type="button"
+            className="font-mono text-xs text-slate-500 truncate text-left hover:underline cursor-pointer"
+            title={e.originalPath}
+            onClick={() => {
+              openPath(e.originalPath).catch((err) => console.error("openPath failed", err));
+            }}
+          >
+            {e.originalName}
+          </button>
+          <span
+            className={`font-mono text-xs truncate ${
+              e.status === "error" ? "text-rose-700 dark:text-rose-300" : "text-emerald-700 dark:text-emerald-300"
+            }`}
+            title={e.proposedName}
+          >
+            → {e.proposedName}
+          </span>
+        </div>
         <button
           type="button"
           className={`px-1.5 py-0.5 rounded text-xs cursor-pointer hover:opacity-75 active:scale-95 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed ${sourceColor(e.source)}`}
@@ -328,7 +337,7 @@ function Row({
           className="action-btn bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-300 dark:disabled:bg-slate-700 disabled:cursor-not-allowed"
           onClick={onRename}
           disabled={!renamable}
-          title={renamable ? "Rename" : "Author and series required"}
+          title={renamable ? "Rename" : "Author and series or title required"}
         >
           ✓
         </button>
@@ -348,14 +357,19 @@ function Field({
   label,
   className,
   children,
+  onLabelClick,
 }: {
   label: string;
   className?: string;
   children: React.ReactNode;
+  onLabelClick?: () => void;
 }) {
   return (
     <div className={className}>
-      <label className="block text-[10px] uppercase tracking-wider text-slate-500 mb-0.5">
+      <label
+        className={`block text-[10px] uppercase tracking-wider text-slate-500 mb-0.5${onLabelClick ? " cursor-pointer hover:text-slate-800 dark:hover:text-slate-300" : ""}`}
+        onClick={onLabelClick}
+      >
         {label}
       </label>
       {children}

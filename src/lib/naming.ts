@@ -23,6 +23,25 @@ export function formatAuthor(raw: string): string {
   return trimmed;
 }
 
+function dotSingleLetters(s: string): string {
+  return s
+    .replace(/(?<![A-Za-z])([A-Za-z])(?![A-Za-z])\.?/g, "$1.")
+    .replace(/\.\s+(?=[A-Za-z]\.)/g, ".");
+}
+
+export function swapAuthorName(raw: string): string {
+  const trimmed = raw.trim();
+  if (!trimmed) return "";
+  if (trimmed.includes(",")) {
+    const [left, ...rest] = trimmed.split(",");
+    return dotSingleLetters(`${rest.join(",").trim()}, ${left.trim()}`);
+  }
+  const parts = trimmed.split(/\s+/);
+  const last = parts.pop()!;
+  const first = parts.join(" ");
+  return dotSingleLetters(first ? `${last}, ${first}` : last);
+}
+
 export function padVolume(volume: number, max: number): string {
   const maxInt = Math.max(Math.floor(Math.abs(max)), 1);
   const width = Math.max(2, String(maxInt).length);

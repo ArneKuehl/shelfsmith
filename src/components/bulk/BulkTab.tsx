@@ -123,7 +123,7 @@ export function BulkTab() {
   const cancelScan = () => abortRef.current?.abort();
 
   const renameSingle = async (entry: BulkEntry) => {
-    if (!entry.author || !entry.series) return;
+    if (!entry.author || (!entry.series && !entry.title)) return;
     setError(null);
     setRenaming(true);
     upsert({ ...entry, status: "renaming" });

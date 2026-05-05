@@ -345,17 +345,21 @@ export function bulkTargetPath(e: BulkEntry, settings: Settings): string {
 export function bulkProposedName(e: BulkEntry, includeTitle: boolean): string {
   const author = sanitize(formatAuthor(e.author));
   const series = sanitize(e.series);
-  const head = author && series ? `${author} - ${series}` : author || series || "";
+  const title = e.title ? sanitize(e.title) : "";
+  const titleOnly = !series && !!title;
+
+  const head = titleOnly
+    ? (author ? `${author} - ${title}` : title)
+    : author && series ? `${author} - ${series}` : author || series || "";
   let name = head;
-  if (e.volume !== null) {
+  if (!titleOnly && e.volume !== null) {
     const start = padBulkVolume(e.volume);
     const end =
       e.volumeEnd !== null && e.volumeEnd > e.volume ? `-${padBulkVolume(e.volumeEnd)}` : "";
     name += name ? ` (${start}${end})` : `(${start}${end})`;
   }
-  if (includeTitle && e.title) {
-    const t = sanitize(e.title);
-    name += name ? ` - ${t}` : t;
+  if (!titleOnly && includeTitle && title) {
+    name += name ? ` - ${title}` : title;
   }
   if (!name) name = sanitize(e.originalName.replace(/\.[^.]+$/, "")) || "untitled";
   return name + e.extension;
