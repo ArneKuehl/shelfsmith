@@ -2,5 +2,5 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 fn main() {
-    book_series_renamer_lib::run()
+    shelfsmith_lib::run()
 }

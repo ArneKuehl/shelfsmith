@@ -1,5 +1,6 @@
 import { load, type Store } from "@tauri-apps/plugin-store";
-import type { BulkEntry, LibraryCluster, LibraryEntry, LibrarySettings, Settings, UndoEntry } from "../types";
+import type { BulkEntry, LibraryCluster, LibraryEntry, LibrarySettings, PipelineEntry, Settings, UndoEntry } from "../types";
+import type { RenameRecord } from "./pipeline/types";
 
 export type BulkCache = {
   folder: string | null;
@@ -98,4 +99,39 @@ export async function saveLibraryCache(cache: LibraryCache | null): Promise<void
   const s = await getStore();
   if (cache) await s.set("library_cache", cache);
   else await s.delete("library_cache");
+}
+
+// ---------------------------------------------------------------------------
+// Pipeline cache
+// ---------------------------------------------------------------------------
+
+export type PipelineCache = {
+  folder: string | null;
+  recursive: boolean;
+  entries: PipelineEntry[];
+};
+
+export async function loadPipelineCache(): Promise<PipelineCache | null> {
+  const s = await getStore();
+  return (await s.get<PipelineCache>("pipeline_cache")) ?? null;
+}
+
+export async function savePipelineCache(cache: PipelineCache | null): Promise<void> {
+  const s = await getStore();
+  if (cache) await s.set("pipeline_cache", cache);
+  else await s.delete("pipeline_cache");
+}
+
+// ---------------------------------------------------------------------------
+// Rename history
+// ---------------------------------------------------------------------------
+
+export async function loadRenameHistory(): Promise<RenameRecord[]> {
+  const s = await getStore();
+  return (await s.get<RenameRecord[]>("rename_history")) ?? [];
+}
+
+export async function saveRenameHistory(records: RenameRecord[]): Promise<void> {
+  const s = await getStore();
+  await s.set("rename_history", records);
 }

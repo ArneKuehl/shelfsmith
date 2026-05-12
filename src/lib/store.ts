@@ -7,6 +7,7 @@ import type {
   LibraryEntry,
   LibrarySettings,
   Mode,
+  PipelineEntry,
   SeriesMeta,
   Settings,
   UndoEntry,
@@ -46,6 +47,12 @@ type State = {
   librarySettings: LibrarySettings;
   libraryScanning: boolean;
   librarySelectedCluster: string | null;
+
+  // Pipeline mode
+  pipelineEntries: PipelineEntry[];
+  pipelineScanning: boolean;
+  pipelineRenaming: boolean;
+  pipelineProgress: { done: number; total: number } | null;
 
   setMode: (m: Mode) => void;
   setSettings: (s: Partial<Settings>) => void;
@@ -101,6 +108,18 @@ type State = {
   recomputeBulkName: (id: string) => void;
   recomputeAllBulkNames: () => void;
   clearBulk: () => void;
+
+  // Pipeline
+  setPipelineEntries: (entries: PipelineEntry[]) => void;
+  upsertPipelineEntry: (entry: PipelineEntry) => void;
+  updatePipelineEntry: (id: string, patch: Partial<PipelineEntry>) => void;
+  removePipelineEntry: (id: string) => void;
+  togglePipelineSelected: (id: string) => void;
+  setAllPipelineSelected: (selected: boolean) => void;
+  setPipelineScanning: (b: boolean) => void;
+  setPipelineRenaming: (b: boolean) => void;
+  setPipelineProgress: (p: State["pipelineProgress"]) => void;
+  clearPipeline: () => void;
 };
 
 const DEFAULT_SETTINGS: Settings = {
@@ -144,6 +163,11 @@ export const useStore = create<State>((set, get) => ({
   librarySettings: { titleCase: true, fuzzThreshold: 0.88 },
   libraryScanning: false,
   librarySelectedCluster: null,
+
+  pipelineEntries: [],
+  pipelineScanning: false,
+  pipelineRenaming: false,
+  pipelineProgress: null,
 
   setMode: (mode) => set({ mode, error: null }),
   setSettings: (s) => set((st) => ({ settings: { ...st.settings, ...s } })),
@@ -319,6 +343,38 @@ export const useStore = create<State>((set, get) => ({
   },
   clearBulk: () =>
     set({ bulkEntries: [], bulkProgress: null, bulkUndo: null, error: null }),
+
+  // Pipeline
+  setPipelineEntries: (entries) => set({ pipelineEntries: entries }),
+  upsertPipelineEntry: (entry) =>
+    set((st) => {
+      const idx = st.pipelineEntries.findIndex((e) => e.id === entry.id);
+      if (idx === -1) return { pipelineEntries: [...st.pipelineEntries, entry] };
+      const next = st.pipelineEntries.slice();
+      next[idx] = entry;
+      return { pipelineEntries: next };
+    }),
+  updatePipelineEntry: (id, patch) =>
+    set((st) => ({
+      pipelineEntries: st.pipelineEntries.map((e) =>
+        e.id === id ? { ...e, ...patch } : e,
+      ),
+    })),
+  removePipelineEntry: (id) =>
+    set((st) => ({ pipelineEntries: st.pipelineEntries.filter((e) => e.id !== id) })),
+  togglePipelineSelected: (id) =>
+    set((st) => ({
+      pipelineEntries: st.pipelineEntries.map((e) =>
+        e.id === id ? { ...e, selected: !e.selected } : e,
+      ),
+    })),
+  setAllPipelineSelected: (selected) =>
+    set((st) => ({ pipelineEntries: st.pipelineEntries.map((e) => ({ ...e, selected })) })),
+  setPipelineScanning: (b) => set({ pipelineScanning: b }),
+  setPipelineRenaming: (b) => set({ pipelineRenaming: b }),
+  setPipelineProgress: (p) => set({ pipelineProgress: p }),
+  clearPipeline: () =>
+    set({ pipelineEntries: [], pipelineProgress: null, error: null }),
 }));
 
 function sortByVolume(a: FileEntry, b: FileEntry): number {

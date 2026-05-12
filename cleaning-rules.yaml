@@ -1,0 +1,501 @@
+# cleaning-rules.yaml
+# Maschinell lesbare Bereinigungsregeln für E-Book-Dateinamen
+# Abgeleitet aus 1278 manuellen Dirty→Clean-Mappings in duplicates.json
+#
+# Anwendungsreihenfolge: Abschnitte sind in der Reihenfolge angegeben,
+# in der sie auf den Dateinamen-Stem (ohne Extension) angewendet werden sollen.
+
+# ---------------------------------------------------------------------------
+# 0. DATEIENDUNG
+# ---------------------------------------------------------------------------
+# Vor allen Operationen: Extension abtrennen und separat merken.
+# Erkannte Extensions:
+extensions:
+  - .epub
+  - .pdf
+  - .mobi
+  - .azw3
+
+# ---------------------------------------------------------------------------
+# 1. UNICODE-NORMALISIERUNG
+# ---------------------------------------------------------------------------
+unicode:
+  normalization: NFC
+  # Decomposed characters (z.B. u + combining diaeresis) → precomposed (ü)
+
+# ---------------------------------------------------------------------------
+# 2. QUELL-MARKIERUNGEN (Suffix-Entfernung + optionales Tagging)
+# ---------------------------------------------------------------------------
+# Reihenfolge: längste/spezifischste Muster zuerst anwenden.
+source_suffixes:
+
+  - id: annas_archive
+    description: Anna's Archive Download-Signatur
+    # Beispiel: "Title -- Author -- 2024 -- Publisher -- a1b2c3d4 -- Anna's Archive"
+    regex: '\s*--\s*.+?\s*--\s*\d{4}\s*--\s*.+?\s*--\s*[a-f0-9]{16,}\s*--\s*Anna.?s Archive\s*$'
+    action: remove
+    tag: null
+
+  - id: libgen
+    description: Library Genesis Suffix
+    # Beispiel: "Author - Title-Publisher (2021) - libgen.li"
+    regex: '\s*-\s*libgen\.li\s*$'
+    action: remove
+    tag: null
+
+  - id: royalroad_rylrdl
+    description: Royal Road Plattform-ID
+    # Beispiel: "Title-rylrdl_60127"  oder  "Title-rylrdl_66279"
+    regex: '-?rylrdl[_-]?\d+\s*$'
+    action: remove
+    tag: royalroad   # → clean name bekommt Suffix " - (Royalroad)"
+
+  - id: zlibrary
+    description: Z-Library Marker in Klammern
+    # Beispiel: "Title (Z-Library)"
+    regex: '\s*\(Z-Library\)\s*$'
+    action: remove
+    tag: null
+
+  - id: numeric_id
+    description: Numerische Download-ID (6+ Ziffern) nach Unterstrich
+    # Beispiel: "The Battlemage_116967466"  |  "Title_122991047"
+    regex: '[_-]\d{6,}\s*$'
+    action: remove
+    tag: null
+
+# ---------------------------------------------------------------------------
+# 3. DATEINAMEN-INTERNE MARKER (Entfernung)
+# ---------------------------------------------------------------------------
+inline_markers:
+
+  - id: epub_marker
+    description: "(epub)" als Dateinamen-Bestandteil
+    # Beispiel: "Author - Title (epub).epub"
+    regex: '\s*\(epub\)\s*'
+    action: remove
+
+  - id: download_duplicate_number
+    description: Nummerierter Download-Duplikat-Suffix "(1)", "(2)" etc.
+    # Beispiel: "filename(1).epub"  |  "filename (2).pdf"
+    regex: '\s*\(\d{1,2}\)\s*$'
+    action: remove
+
+  - id: final_marker
+    description: "(Final)" Vorschau-/Vorabversions-Markierung
+    regex: '\s*\(Final\)\s*'
+    action: remove
+
+  - id: version_marker
+    description: Versionsnummern wie "(v5.0)", "(MEAP V06)"
+    regex: '\s*\((?:v\d[\d.]*|MEAP\s+V\d+)\)\s*'
+    action: remove
+
+  - id: auth_marker
+    description: '(auth.) Markierung'
+    regex: '\s*\(auth\.\)\s*'
+    action: remove
+
+  - id: author_marker
+    description: '(Author) Markierung'
+    regex: '\s*\(Author\)\s*'
+    action: remove
+
+  - id: us_marker
+    description: "(US) Ländermarkierung"
+    regex: '\s*\(US\)\s*'
+    action: remove
+
+  - id: german_edition_marker
+    description: "(German Edition)"
+    regex: '\s*\(German Edition\)\s*'
+    action: remove
+
+  - id: essentials_marker
+    description: "(essentials)" Reihen-Tag von Springer
+    regex: '\s*\(essentials\)\s*'
+    action: remove
+
+  - id: dummies_prefix
+    description: "(Dummies)" oder "(Rich Dad)" als Klammer-Prefix
+    # Beispiel: "(Dummies) Author - Title"  |  "(Rich Dad) Author - Title"
+    regex: '^\([A-Za-z ]+\)\s+'
+    action: remove
+
+  - id: leading_bracket_number
+    description: "[0]" Nummerierungs-Prefix
+    # Beispiel: "[0] Hans Rosling - Factfulness"
+    regex: '^\[0\]\s+'
+    action: remove
+
+  - id: terra_astra_prefix
+    description: "TA NNN -" Prefix der Terra Astra Heft-Reihe
+    # Beispiel: "TA 241 - Blish, James - Star Trek 10 - Spocks Gehirn"
+    regex: '^TA\s+\d+\s*-\s*'
+    action: remove
+
+# ---------------------------------------------------------------------------
+# 4. VERLAGS- UND JAHRES-BLOCK (Suffix-Entfernung)
+# ---------------------------------------------------------------------------
+# Muster: "-Verlagsname (JJJJ)" oder "-Verlagsname (JJJJ, Stadt)"
+# Nur entfernen wenn die Klammer eine vierstellige Jahreszahl enthält.
+publisher_year:
+  regex: '-[^-\[\(]+?\s*\(\d{4}[^)]*\)\s*$'
+  action: remove
+  # Bekannte Verlagsnamen (zur Validierung / zum gezielten Matching):
+  known_publishers:
+    - No Starch Press
+    - Wiley
+    - Wiley-VCH
+    - Wiley-VCH Verlag GmbH & Co. KGaA
+    - Wiley-VCH GmbH
+    - John Wiley & Sons
+    - Packt Publishing
+    - Packt Publishing Pvt. Ltd.
+    - Packt Publishing Pvt Ltd
+    - Apress
+    - O'Reilly Media
+    - O'Reilly Media, Inc.
+    - O'Reilly
+    - CRC Press
+    - CRC Press_Auerbach
+    - Auerbach Publications
+    - Auerbach Publications_CRC Press
+    - Auerbach Publishers, Incorporated
+    - Manning Publications
+    - Manning Publications Co.
+    - Manning
+    - Addison-Wesley Professional
+    - Pearson
+    - Pearson Education
+    - Pearson Higher Ed
+    - Pearson Education (US)
+    - HarperCollins
+    - HarperCollinsPublishers
+    - Penguin Publishing Group
+    - Penguin Random House LLC
+    - Penguin Random House UK
+    - Penguin Random House Verlagsgruppe GmbH
+    - Penguin Verlag
+    - Albrecht Knaus Verlag
+    - Goldmann Verlag
+    - Random House Business
+    - Random House DE
+    - Crown Publishing Group
+    - Springer Vieweg
+    - Springer Gabler
+    - Springer Fachmedien Wiesbaden
+    - Springer Berlin Heidelberg
+    - Springer Fachmedien Wiesbaden_Springer Gabler
+    - Gabler Verlag
+    - Duncker & Humblot
+    - dpunkt
+    - FinanzBuch Verlag
+    - Gräfe und Unzer Verlag
+    - Koehler Publishers
+    - UVK Verlagsgesellschaft
+    - S. Fischer
+    - Kösel-Verlag
+    - arsEdition GmbH
+    - BC Publications
+    - MITP-Verlag
+    - BPB Publications
+    - Basic Books
+    - Belknap Press
+    - Scribner
+    - Gotham
+    - Knopf
+    - Hachette Books
+    - Hachette Children's Group
+    - Little, Brown and Company
+    - Open Road Media
+    - New World Library
+    - Victory Belt Publishing
+    - Celadon Books
+    - Chapman and Hall_CRC
+    - Bloomsbury Publishing Plc
+    - Head of Zeus
+    - Orbit
+    - Tom Doherty Associates
+    - Aethon Books
+    - Mountaindale Press
+    - Dandy House
+    - Hidden Gnome Publishing
+    - Black Pyramid Press
+    - Four Elephants Press
+    - DOUBLE HAPPINESS PUBLISHING
+    - Undergrove Press
+    - Magic Dome Books
+    - Magic Dome Books, s.r.o.
+    - Advantage Media Group
+    - Plata Publishing
+    - Que Publishing
+    - Peachpit Press
+    - For Dummies
+    - Daily Books
+    - Asgard
+    - Mit Press
+    - Free Press
+    - Independently published
+    - Independently Published
+
+# ---------------------------------------------------------------------------
+# 5. UNTERSTRICH-ALS-LEERZEICHEN (nach Quell-Suffix-Entfernung)
+# ---------------------------------------------------------------------------
+underscores:
+  description: >
+    Alle verbleibenden Unterstriche im Stem durch Leerzeichen ersetzen.
+    Ausnahme: Unterstriche innerhalb von Zahlen-IDs, die bereits in Schritt 2
+    entfernt wurden.
+  regex: '_'
+  replacement: ' '
+
+# ---------------------------------------------------------------------------
+# 6. DOPPELPUNKT-ARTEFAKT (Unterstrich vor Space = Doppelpunkt-Ersatz)
+# ---------------------------------------------------------------------------
+# Manche Tools ersetzen ': ' mit '_ ' im Dateinamen.
+# Nach Schritt 5 manifestiert das als doppelter Space, der hier zu ' - ' wird.
+colon_artifact:
+  description: >
+    "Wort  Nächster" (doppelter Space nach Unterstrich→Space) → "Wort - Nächster"
+  # WICHTIG: Erst NACH Schritt 5 (Underscores→Spaces) anwenden
+  regex: '(\w)  ([A-Z])'
+  replacement: '$1 - $2'
+
+# ---------------------------------------------------------------------------
+# 7. WHITESPACE-NORMALISIERUNG
+# ---------------------------------------------------------------------------
+whitespace:
+  - collapse_multiple_spaces: true   # "  " → " "
+  - trim_leading_trailing: true
+
+# ---------------------------------------------------------------------------
+# 8. GENRE-TAGS UND SUBTITEL-ENTFERNUNG
+# ---------------------------------------------------------------------------
+# Diese Phrasen erscheinen nach dem eigentlichen Titel (nach '_' oder ':')
+# und werden entfernt. Matching ist case-insensitive.
+# Anwendung: als Suffix nach dem Haupttitel, oft eingeleitet durch '_' oder ':'
+genre_tags:
+  description: >
+    Entfernen von Genre-/Marketing-Beschreibungen, die an den Titel angehängt wurden.
+    Match greift, wenn die Phrase am Ende des Titelsegments steht oder nach einem
+    Trennzeichen (_, :, -) folgt.
+
+  # LitRPG / GameLit
+  - "A LitRPG Adventure"
+  - "A LitRPG Adventure Box Set"
+  - "A LitRPG Level-up Adventure"
+  - "A LitRPG Progression Fantasy Series"
+  - "A LitRPG Series"
+  - "A LitRPG Wuxia Series"
+  - "A LitRPG Wuxia"
+  - "A LitRPG"
+  - "A Fantasy LitRPG Adventure"
+  - "An Apocalypse LitRPG Series"
+  - "An Epic Fantasy LitRPG Adventure"
+  - "LitRPG Series"
+
+  # Progression Fantasy / Portal Fantasy
+  - "A Portal Progression Fantasy Series"
+  - "A Portal Progression Fantasy"
+  - "A Portal Progression Adventure"
+  - "A Portal Progression"
+  - "A Daopocalypse Progression Fantasy"
+  - "A Progression Fantasy Series"
+  - "A Progression Portal Fantasy"
+
+  # Xianxia / Wuxia / Cultivation
+  - "A Xianxia Cultivation Novel"
+  - "A Xianxia Cultivation Series"
+  - "A Xanxia Cultivation Series"          # Tippfehler-Variante
+  - "An Omnibus Collection for a Xianxia Cultivation Series"
+  - "A Portal Cultivation Fantasy Saga"
+  - "A Cultivation Novel"
+  - "A LitRPG Wuxia Series"
+  - "A Wuxia Story"
+
+  # Sonstige Fantasy/Sci-Fi Genre-Tags
+  - "A Divine Dungeon Series"
+  - "An Epic Space Fantasy Adventure"
+  - "A SciFi 4X LitRPG Series"
+  - "A Pythonic Adventure for the Intrepid Beginner"
+
+# ---------------------------------------------------------------------------
+# 9. STRUKTURELLE MUSTER (Reihenfolge: spezifisch → generisch)
+# ---------------------------------------------------------------------------
+# Nach den Bereinigungsschritten 1–8 wird der Stem strukturell geparst.
+# Die Muster werden in der angegebenen Reihenfolge durchprobiert.
+
+structural_patterns:
+
+  - id: already_clean
+    description: Bereits im Zielformat "Nachname, Vorname - ..."
+    regex: '^[A-ZÄÖÜ][a-zäöüß]+,\s+\S.+\s+-\s+.+'
+    action: accept_as_is
+
+  - id: annas_archive_restructured
+    description: >
+      Nach Anna's-Archive-Suffix-Entfernung verbleibt "Titel -- Autor"
+    regex: '^(.+?)\s*--\s*(.+?)$'
+    groups:
+      title: 1
+      author: 2
+    action: swap_and_reformat
+
+  - id: square_bracket_series_prefix
+    description: "[Serie N] Autor - Titel" oder "[Serie N Autor - Titel]"
+    # Beispiele:
+    #   [Dungeon Crawler Carl 4] Matt Dinniman - The Gate of the Feral Gods
+    #   [Defiance of the Fall 2] TheFirstDefier - Defiance of the Fall 2
+    #   [VeilVerse_ Cultivating Chaos 01] • Cultivating Chaos
+    #   [The Goblin Emperor 2] Katherine Addison - The Witness for the Dead
+    regex: '^\[([^\]]+?)\s+(\d+[\d.-]*)\]\s*[•·]?\s*(.+?)(?:\s+-\s+(.+))?$'
+    groups:
+      series: 1
+      volume: 2
+      author_or_title: 3
+      title: 4
+    action: extract_series_volume_author_title
+
+  - id: round_bracket_series_prefix
+    description: "(Serie N) Autor - Titel"
+    # Beispiele:
+    #   (Sword of Truth 3) Goodkind, Terry - Die Schwestern des Lichts
+    #   (Cradle 1-9) Will Wight
+    #   (RiftWar Saga 1) Feist, Raymond E - Magician
+    regex: '^\(([^)]+?)\s+(\d+[\d.-]*)\)\s*(.+?)(?:\s+-\s+(.+))?$'
+    groups:
+      series: 1
+      volume: 2
+      author_or_title: 3
+      title: 4
+    action: extract_series_volume_author_title
+
+  - id: terra_astra
+    description: "TA NNN - Autor - Titel" (wird bereits in Schritt 3 entfernt, Fallback)
+    regex: '^TA\s+\d+\s*-\s*(.+)$'
+    groups:
+      remainder: 1
+    action: reparse_remainder
+
+  - id: author_dash_title
+    description: "Vorname Nachname - Titel" oder "Nachname, Vorname - Titel"
+    regex: '^(.+?)\s+-\s+(.+)$'
+    groups:
+      author: 1
+      title: 2
+    action: normalize_author_and_title
+
+  - id: title_only
+    description: Kein erkennbares Trennzeichen → ganzer Stem ist Titel
+    regex: '^(.+)$'
+    groups:
+      title: 1
+    action: flag_for_enrichment   # Autor unbekannt → Stage 2/3
+
+# ---------------------------------------------------------------------------
+# 10. AUTORNAMEN-NORMALISIERUNG
+# ---------------------------------------------------------------------------
+author_normalization:
+
+  pen_names:
+    description: >
+      Ein-Wort-Autoren (Pseudonyme), die NICHT zu "Nachname, Vorname" umgestellt werden.
+      Wird auch als Lookup-Tabelle für Stage-3-LLM-Prompts verwendet.
+    names:
+      - Casualfarmer
+      - DarkTechnomancer
+      - Dosei
+      - Edontigney
+      - Exterminatus
+      - JCLouis
+      - OccupyTheWeb
+      - Ossola
+      - PSHoffman
+      - Pegaz
+      - Rhaegar
+      - RinoZ
+      - Shirtaloon
+      - Sleyca
+      - SpacePickle
+      - SquiggleStoryStudios
+      - SunriseCV
+      - TMarkos
+      - TheFirstDefier
+      - TurtleMe
+      - Zogarth
+
+  rules:
+    - id: already_inverted
+      description: "Nachname, Vorname" → beibehalten
+      condition: contains_comma
+      action: keep
+
+    - id: single_word
+      description: Einwortiger Name → als Penname beibehalten
+      condition: single_word
+      action: keep
+
+    - id: two_words_flip
+      description: "Vorname Nachname" → "Nachname, Vorname"
+      condition: two_words_no_comma
+      action: invert   # "Mark Manson" → "Manson, Mark"
+
+    - id: three_or_more_words
+      description: Drei oder mehr Wörter → manuell prüfen
+      condition: three_or_more_words_no_comma
+      action: flag_for_review
+      # Beispiele: "Claudia Ossola-Haring", "Glen Cordoza Kelly Starrett"
+
+    - id: multiple_authors
+      description: Mehrere Autoren durch "and", "&", "," getrennt
+      # Beispiele: "Anirudh Kala, Anshul Bhatnagar, and Sarthak Sarbahi"
+      condition: multiple_authors_detected
+      action: keep_primary_author_or_ampersand
+      # Primärautor = erster genannter; bei 2 Autoren: "Autor1 & Autor2"
+
+# ---------------------------------------------------------------------------
+# 11. BANDNUMMERN-NORMALISIERUNG
+# ---------------------------------------------------------------------------
+volume_normalization:
+  zero_pad_to: 2      # Band 4 → (04), Band 12 → (12)
+  range_separator: "-"  # Band 1–3 → (01-03)
+
+  extraction_patterns:
+    - regex: 'Book\s+(\d+)'        # "Book 5"
+    - regex: 'Vol\.?\s*(\d+)'      # "Vol. 3" oder "Vol 3"
+    - regex: '#(\d+)'              # "#7"
+    - regex: '\s(\d+)$'            # nachlaufende Ziffer am Seriennamen-Ende
+
+# ---------------------------------------------------------------------------
+# 12. ZUSAMMENBAU-REGELN
+# ---------------------------------------------------------------------------
+assembly:
+  formats:
+    full:          '{author} - {series} ({volume}) - {title}.{ext}'
+    no_subtitle:   '{author} - {series} ({volume}).{ext}'
+    no_series:     '{author} - {title}.{ext}'
+    royalroad:     '{author} - {title} - (Royalroad).{ext}'
+    alternative:   '{author} - {series} ({volume}) - {title} (alternative file).{ext}'
+    alt_short:     '{author} - {title} (alt).{ext}'
+
+# ---------------------------------------------------------------------------
+# 13. KONFIDENZ-SCORING
+# ---------------------------------------------------------------------------
+confidence:
+  thresholds:
+    high:   0.7    # Auto-Rename empfohlen
+    medium: 0.4    # Review empfohlen
+    low:    0.0    # Manuelle Bearbeitung nötig
+
+  deductions:
+    - condition: author_completely_unknown
+      value: -0.4
+    - condition: author_llm_only_no_metadata_confirmation
+      value: -0.3
+    - condition: series_inferred_from_title_only
+      value: -0.2
+    - condition: volume_number_ambiguous
+      value: -0.2
+    - condition: title_truncated_or_genre_tags_removed
+      value: -0.1

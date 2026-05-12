@@ -296,26 +296,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "book-series-renamer"
-version = "0.1.0"
-dependencies = [
- "lopdf",
- "quick-xml 0.36.2",
- "serde",
- "serde_json",
- "tauri",
- "tauri-build",
- "tauri-plugin-dialog",
- "tauri-plugin-fs",
- "tauri-plugin-http",
- "tauri-plugin-opener",
- "tauri-plugin-store",
- "trash",
- "walkdir",
- "zip",
-]
-
-[[package]]
 name = "brotli"
 version = "8.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3812,6 +3792,26 @@ dependencies = [
  "cfg-if",
  "cpufeatures",
  "digest",
+]
+
+[[package]]
+name = "shelfsmith"
+version = "0.1.0"
+dependencies = [
+ "lopdf",
+ "quick-xml 0.36.2",
+ "serde",
+ "serde_json",
+ "tauri",
+ "tauri-build",
+ "tauri-plugin-dialog",
+ "tauri-plugin-fs",
+ "tauri-plugin-http",
+ "tauri-plugin-opener",
+ "tauri-plugin-store",
+ "trash",
+ "walkdir",
+ "zip",
 ]
 
 [[package]]

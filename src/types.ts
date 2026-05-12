@@ -34,7 +34,7 @@ export type UndoEntry = {
   pairs: RenamePair[];
 };
 
-export type Mode = "series" | "bulk" | "library";
+export type Mode = "series" | "bulk" | "pipeline" | "library";
 
 export type BulkSortBy = "author" | "series";
 
@@ -182,4 +182,32 @@ export type LibraryCluster = {
 export type LibrarySettings = {
   titleCase: boolean;
   fuzzThreshold: number;
+};
+
+// ---------------------------------------------------------------------------
+// Pipeline tab
+// ---------------------------------------------------------------------------
+
+export type PipelineSortBy = "author" | "confidence" | "pattern";
+
+export type PipelineEntry = {
+  id: string;
+  originalPath: string;
+  originalName: string;
+  extension: string;
+  selected: boolean;
+  author: string;
+  series: string;
+  volume: string | null;
+  title: string | null;
+  proposedName: string;
+  matchedPattern: string;
+  overallConfidence: number;
+  fieldSource: import("./lib/pipeline/types").FieldSource;
+  authorConfidence: number;
+  seriesConfidence: number;
+  titleConfidence: number;
+  tags: string[];
+  status: "idle" | "scanning" | "ok" | "renaming" | "renamed" | "error";
+  error?: string;
 };

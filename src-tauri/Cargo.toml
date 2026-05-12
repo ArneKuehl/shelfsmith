@@ -1,12 +1,12 @@
 [package]
-name = "book-series-renamer"
+name = "shelfsmith"
 version = "0.1.0"
-description = "LLM-based book series file renamer"
+description = "LLM-based book library manager"
 authors = ["Arne Kühl"]
 edition = "2021"
 
 [lib]
-name = "book_series_renamer_lib"
+name = "shelfsmith_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]

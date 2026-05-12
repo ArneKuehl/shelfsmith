@@ -7,6 +7,7 @@ import { ConfirmDialog } from "./components/ConfirmDialog";
 import { UndoBar } from "./components/UndoBar";
 import { SettingsScreen } from "./components/SettingsScreen";
 import { BulkTab } from "./components/bulk/BulkTab";
+import { PipelineTab } from "./components/pipeline/PipelineTab";
 import { LibraryTab } from "./components/library/LibraryTab";
 import { useStore, targetPath } from "./lib/store";
 import { analyze } from "./lib/lmstudio";
@@ -161,6 +162,8 @@ export default function App() {
         </>
       ) : mode === "bulk" ? (
         <BulkTab />
+      ) : mode === "pipeline" ? (
+        <PipelineTab />
       ) : (
         <LibraryTab />
       )}
@@ -198,6 +201,7 @@ function Tabs({
     <div className="flex items-center bg-white dark:bg-slate-950 border-b border-slate-200 dark:border-slate-800 px-4">
       {tab("series", "Series")}
       {tab("bulk", "Clean up")}
+      {tab("pipeline", "Pipeline")}
       {tab("library", "Library")}
       <button
         onClick={onToggleTheme}
